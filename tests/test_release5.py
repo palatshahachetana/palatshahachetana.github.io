@@ -94,3 +94,10 @@ def test_reviews_hidden_until_added(page, base_url):
         body="window.CT_CONFIG={SYNC_URL:'',REVIEWS:[{text:'Great teacher',who:'Neha, Grade 4 parent'}]};", content_type="application/javascript"))
     page.reload(); page.wait_for_timeout(400)
     assert page.locator(".review").count() == 1
+
+
+def test_toy_questions_always_include_the_answer(page):
+    page.go("home")
+    bad = page.evaluate("""(()=>{let bad=0;for(const t of ['shapes','place','cake'])for(let i=0;i<500;i++){toy.tab=t;const q=toyQ();
+      if(q.opts&&q.opts.filter(o=>o===q.a).length!==1)bad++;if(q.a==null)bad++}return bad})()""")
+    assert bad == 0

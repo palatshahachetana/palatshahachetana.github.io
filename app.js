@@ -18,13 +18,13 @@ const show=v=>String(v).replace('-','−');
 const KEEP=['progress','stars','sessions','teach'];
 
 /* ====== data store: this device, or a Google Sheet through Apps Script ====== */
-const TK=['students','enquiries','batches','classes','fees'];
-const blank=()=>({tpin:null,students:{},enquiries:{},batches:{},classes:{},fees:{}});
+const TK=['students','enquiries','batches','classes','fees','notes','roadmaps','docs','marks','assign'];
+const blank=()=>({tpin:null,students:{},enquiries:{},batches:{},classes:{},fees:{},notes:{},roadmaps:{},docs:{},marks:{},assign:{}});
 const db=()=>Object.assign(blank(),ls.get('ct_data')||{});
 function tcheck(d,pin){if(!d.tpin)d.tpin=pin;if(d.tpin!==pin)throw Error('Wrong PIN')}
 const Local={
   async names(){return Object.values(db().students).filter(s=>s.status!=='left').map(s=>({id:s.id,name:s.name}))},
-  async login(id,pin,name){const n=String(name||'').trim().toLowerCase(),s=id?db().students[id]:Object.values(db().students).find(x=>x.status!=='left'&&x.name.trim().toLowerCase()===n&&x.pin===pin);if(!s||s.pin!==pin||s.status==='left')throw Error('Wrong PIN');return s},
+  async login(id,pin,name){const n=String(name||'').trim().toLowerCase(),s=id?db().students[id]:Object.values(db().students).find(x=>x.status!=='left'&&x.name.trim().toLowerCase()===n&&x.pin===pin);if(!s||s.pin!==pin||s.status==='left')throw Error('Wrong PIN');const d0=db();s.assign=Object.values(d0.assign||{}).filter(a=>a.target==='s:'+s.id||a.target==='b:'+s.batch);return s},
   async sSave(id,pin,patch){const d=db(),s=d.students[id];if(!s||s.pin!==pin)throw Error('Wrong PIN');KEEP.forEach(k=>{if(k in patch)s[k]=patch[k]});ls.set('ct_data',d)},
   async tAll(pin){const d=db();tcheck(d,pin);ls.set('ct_data',d);const o={me:{role:'owner',name:'Chetana'}};TK.forEach(k=>o[k]=Object.values(d[k]));o.teachers=[];return o},
   async tPut(pin,kind,o){const d=db();tcheck(d,pin);if(TK.indexOf(kind)<0)throw Error('Bad request');if(kind==='students'&&!o.pin&&d.students[o.id])o.pin=d.students[o.id].pin;const old=d[kind][o.id];if(kind==='students'&&old)KEEP.forEach(k=>{if(k in old)o[k]=old[k]});d[kind][o.id]=o;ls.set('ct_data',d);return o},
@@ -135,7 +135,7 @@ const TRT=[["<h1>Questions parents ask</h1><p class=\"muted lead\">Can’t find 
 function TRL(i){const r=TRT[i];return LANG==='mr'?r[1]:LANG==='hi'?r[2]:r[0]}
 const SUBJ_L={"mr": ["इंग्रजी", "मराठी", "हिंदी", "गणित", "विज्ञान", "सर्व विषय", "वाचनासाठी मदत (इयत्ता १–२)"], "hi": ["अंग्रेज़ी", "मराठी", "हिंदी", "गणित", "विज्ञान", "सभी विषय", "पढ़ने में मदद (कक्षा 1–2)"]};
 const FAQ_L={"mr": [["वर्गांविषयी", [["कोणत्या इयत्ता आणि बोर्डसाठी शिकवता?", "इयत्ता १ ते १०, स्टेट, CBSE आणि ICSE बोर्डसाठी. इयत्ता ८ पर्यंत सर्व विषय, आणि इयत्ता ९ व १० साठी इंग्रजी, मराठी आणि हिंदी."], ["विद्यार्थी कोणत्या शाळांमधून येतात?", "हिंजवडी परिसरातील अनेक शाळांमधून. चेतना प्रत्येक मुलाच्या स्वतःच्या शाळेच्या पाठ्यपुस्तकातून शिकवतात आणि त्या शाळेच्या परीक्षांच्या तारखांनुसार उजळणीचं नियोजन करतात."], ["बॅच किती मोठी असते?", "साधारण ६ ते ८ मुलांची लहान बॅच, शक्यतो शाळा, इयत्ता आणि विषयानुसार. विनंतीवरून एकास-एक वर्गही उपलब्ध."], ["वर्ग कुठे होतात?", "स्पार्कलेट, मेगापोलिस, हिंजवडी, पुणे येथे प्रत्यक्ष, किंवा Google Meet वर लाइव्ह ऑनलाइन."], ["एक वर्ग किती वेळाचा असतो?", "साधारण एक तास: झटपट उजळणी, नवीन संकल्पना, मग तोंडी आणि लेखी सराव."]]], ["शिकवणं आणि प्रगती", [["इतर शिकवण्यांपेक्षा हे वेगळं कसं?", "प्रत्येक सत्राचं नियोजन प्रोजेक्टसारखं होतं: अभ्यासक्रम आणि शाळेच्या परीक्षांच्या तारखांवरून आराखडा, धड्यांचे साप्ताहिक टप्पे, आणि प्रत्येक परीक्षेआधी मुलाच्या स्वतःच्या चुकांची उजळणी. मूल संकल्पना स्वतः समजावून सांगू शकलं तरच पुढे जातो."], ["माझ्या मुलाची प्रगती होतेय हे कसं कळेल?", "पहिल्या आठवड्यात सुरुवातीची चाचणी, एखाद्या विषयात अडकल्यास लगेच संदेश, प्रत्येक शाळेच्या परीक्षेआधी टीप, आणि दर महिन्याला WhatsApp वर प्रगती अहवाल."], ["माझं मूल मराठी किंवा हिंदीत कच्चं आहे आणि घरी ती भाषा बोलली जात नाही. मदत होईल का?", "हो. ही चेतना यांची खासियत आहे. त्या अक्षरांपासून सुरुवात करून वाचन, लेखन आणि बोलण्यापर्यंत नेतात, त्यामुळे तुम्हाला घरी शिकवावं लागत नाही."], ["अभ्यास साहित्य (learning library) म्हणजे काय?", "या वेबसाइटवरील मोफत सराव: इंग्रजी वाचन आणि व्याकरण, गणित, मराठी आणि हिंदी, 3D खेळणी आणि किड्स वर्ल्ड. विद्यार्थी आपलं पहिलं नाव आणि PIN टाइप करतात, त्यामुळे त्यांनी काय सराव केला ते चेतना पाहू शकतात."]]], ["ऑनलाइन वर्ग", [["ऑनलाइन वर्गांसाठी काय लागतं?", "कॅमेरा असलेला लॅपटॉप, टॅबलेट किंवा फोन, स्थिर इंटरनेट आणि शांत जागा. गृहपाठ WhatsApp वर फोटो म्हणून पाठवला जातो."], ["ऑनलाइन वर्ग रेकॉर्ड होतात का?", "फक्त तुमच्या लेखी परवानगीने, आणि फक्त चेतना यांना नोट्स आणि प्रगतीसाठी. रेकॉर्डिंग थोडाच काळ ठेवलं जातं आणि कधीही कोणाला दिलं जात नाही."]]], ["फी आणि प्रवेश", [["फी कशी असते?", "साधी मासिक फी, प्रत्येक महिन्याच्या सुरुवातीला. तुमच्या मुलाच्या इयत्ता आणि विषयांसाठी फी WhatsApp वर विचारा."], ["दीर्घ मुदतीचं बंधन आहे का?", "नाही. एक महिन्याची सूचना देऊन थांबवू शकता, आणि एका महिन्यापेक्षा जास्त आगाऊ फी घेतली जात नाही."], ["मूल एखादा वर्ग चुकवलं तर?", "चेतना छोटी उजळणी पाठवतात किंवा ऑनलाइन भरपाई वर्ग ठेवतात. चुकलेल्या वर्गांची फी परत दिली जात नाही."], ["सुरुवात कशी करायची?", "मोफत डेमो वर्ग बुक करा. चेतना तुमच्या मुलाला भेटतील, छोटी सुरुवातीची चाचणी घेतील आणि योग्य बॅच सुचवतील."]]]], "hi": [["कक्षाओं के बारे में", [["किन कक्षाओं और बोर्ड के लिए पढ़ाती हैं?", "कक्षा 1 से 10, स्टेट, CBSE और ICSE बोर्ड के लिए। कक्षा 8 तक सभी विषय, और कक्षा 9 व 10 के लिए अंग्रेज़ी, मराठी और हिंदी।"], ["विद्यार्थी किन स्कूलों से आते हैं?", "हिंजवडी के आसपास के कई स्कूलों से। चेतना हर बच्चे की अपनी स्कूल की पाठ्यपुस्तक से पढ़ाती हैं और उस स्कूल की टेस्ट तारीखों के हिसाब से दोहराई की योजना बनाती हैं।"], ["बैच कितना बड़ा होता है?", "लगभग 6 से 8 बच्चों का छोटा बैच, जहाँ तक हो सके स्कूल, कक्षा और विषय के हिसाब से। अनुरोध पर वन-टू-वन क्लास भी।"], ["क्लास कहाँ होती है?", "स्पार्कलेट, मेगापोलिस, हिंजवडी, पुणे में आमने-सामने, या Google Meet पर लाइव ऑनलाइन।"], ["एक क्लास कितनी लंबी होती है?", "लगभग एक घंटा: छोटी दोहराई, नया कॉन्सेप्ट, फिर मौखिक और लिखित अभ्यास।"]]], ["पढ़ाई और प्रगति", [["यह दूसरी ट्यूशन से अलग कैसे है?", "हर सत्र की योजना प्रोजेक्ट की तरह बनती है: सिलेबस और स्कूल टेस्ट की तारीखों से रोडमैप, पाठों के साप्ताहिक लक्ष्य, और हर टेस्ट से पहले बच्चे की अपनी गलतियों की दोहराई। बच्चा तभी आगे बढ़ता है जब वह खुद समझा सके।"], ["मुझे कैसे पता चलेगा कि बच्चा सुधर रहा है?", "पहले हफ़्ते में शुरुआती जाँच, किसी विषय में अटकने पर तुरंत संदेश, हर स्कूल टेस्ट से पहले नोट, और हर महीने WhatsApp पर प्रगति रिपोर्ट।"], ["मेरा बच्चा मराठी या हिंदी में कमज़ोर है और घर पर वह भाषा नहीं बोली जाती। क्या मदद मिलेगी?", "हाँ। यह चेतना की ख़ासियत है। वे अक्षरों से शुरू करके पढ़ना, लिखना और बोलना सिखाती हैं, इसलिए आपको घर पर सिखाने की ज़रूरत नहीं।"], ["लर्निंग लाइब्रेरी क्या है?", "इस वेबसाइट पर मुफ़्त अभ्यास: अंग्रेज़ी पढ़ना और व्याकरण, गणित, मराठी और हिंदी, 3D खिलौने और किड्स वर्ल्ड। विद्यार्थी अपना पहला नाम और PIN टाइप करते हैं, ताकि चेतना देख सकें कि उन्होंने क्या अभ्यास किया।"]]], ["ऑनलाइन क्लास", [["ऑनलाइन क्लास के लिए क्या चाहिए?", "कैमरे वाला लैपटॉप, टैबलेट या फ़ोन, स्थिर इंटरनेट और शांत कोना। होमवर्क WhatsApp पर फ़ोटो के रूप में भेजा जाता है।"], ["क्या ऑनलाइन क्लास रिकॉर्ड होती है?", "सिर्फ़ आपकी लिखित अनुमति से, और सिर्फ़ चेतना के नोट्स और प्रगति के लिए। रिकॉर्डिंग थोड़े समय रखी जाती है और कभी किसी को नहीं दी जाती।"]]], ["फ़ीस और दाख़िला", [["फ़ीस कैसे होती है?", "आसान मासिक फ़ीस, हर महीने की शुरुआत में। अपने बच्चे की कक्षा और विषयों की फ़ीस WhatsApp पर पूछें।"], ["क्या लंबी अवधि का बंधन है?", "नहीं। एक महीने की सूचना देकर बंद कर सकते हैं, और एक महीने से ज़्यादा की अग्रिम फ़ीस नहीं ली जाती।"], ["अगर बच्चा कोई क्लास छोड़ दे तो?", "चेतना छोटी दोहराई भेजती हैं या ऑनलाइन भरपाई क्लास रखती हैं। छूटी हुई क्लास की फ़ीस वापस नहीं होती।"], ["शुरुआत कैसे करें?", "मुफ़्त डेमो क्लास बुक करें। चेतना आपके बच्चे से मिलेंगी, छोटी शुरुआती जाँच करेंगी और सही बैच सुझाएँगी।"]]]]};
-const PRIV_L={"mr": "<section class=\"stack\"><h1>गोपनीयता</h1><p class=\"lead\">थोडक्यात आणि सोप्या भाषेत: आम्ही काय ठेवतो, का, आणि ते कसं काढून टाकायचं.</p></section>\n<section class=\"card stack prose\">\n<h2>तुमच्या मुलाविषयी आम्ही काय ठेवतो</h2><p>चांगलं शिकवण्यासाठी आवश्यक तेवढंच: <b>पहिलं नाव</b>, इयत्ता, बोर्ड आणि शाळा, बॅच, उपस्थिती, वर्गातील नोंदी, या वेबसाइटवरील सरावाचे गुण आणि फी भरणा. पालकांसाठी: तुमचं नाव आणि WhatsApp नंबर, अहवाल आणि आठवण पाठवण्यासाठी.</p>\n<p>आम्ही मुलांची आडनावं, मुलांचे फोटो किंवा व्हिडिओ, घरचा पत्ता, आधार किंवा कोणतेही ओळखपत्र क्रमांक, किंवा बँक किंवा कार्डची माहिती <b>ठेवत नाही</b>.</p>\n<h2>का</h2><p>तुमच्या मुलाच्या अभ्यासाचं नियोजन, प्रगतीची नोंद, मासिक अहवाल आणि फीचं व्यवस्थापन करण्यासाठी. एवढंच. तुमची माहिती आम्ही कधीही विकत नाही, कोणाला देत नाही किंवा जाहिरातीसाठी वापरत नाही, आणि जाहिरात किंवा ट्रॅकिंग कुकीज वापरत नाही.</p>\n<h2>कोण पाहू शकतं</h2><p>फक्त चेतना, आणि त्यांनी जोडलेले कोणतेही शिक्षक, जे फक्त स्वतःच्या बॅचची उपस्थिती, नोंदी आणि सराव पाहू शकतात (पालकांचे नंबर किंवा फी कधीच नाही). नोंदी चेतना यांच्या खात्यातील खाजगी Google Sheet मध्ये, 2-step verification ने सुरक्षित ठेवल्या जातात. मुलाच्या स्वतःच्या लॉगिनमध्ये (पहिलं नाव आणि ४ अंकी PIN) फक्त त्या मुलाचे सरावाचे तारे आणि मिशन दिसतात.</p>\n<h2>लॉगिन न करता सराव</h2><p>मुलं लॉगिन न करता अभ्यास साहित्य, किड्स वर्ल्ड, पुणे राइड आणि सुरुवातीची चाचणी वापरू शकतात. ते निकाल तुमच्याच डिव्हाइसवर राहतात. तुम्ही सुरुवातीच्या चाचणीचे निकाल चेतना यांना पाठवले किंवा डेमो बुक केला, तर ती माहिती पाठपुराव्यासाठी त्यांच्या खाजगी चौकशी यादीतही जाते.</p>\n<h2>तुमची संमती</h2><p>पालक किंवा पालकत्व असलेल्या व्यक्तीने संमती दिल्यानंतरच आम्ही मुलाची नोंद करतो. तुम्ही कधीही संमती मागे घेऊ शकता.</p>\n<h2>पाहा, दुरुस्त करा किंवा काढून टाका</h2><p>आमच्याकडे काय आहे ते पाहण्यासाठी, दुरुस्त करण्यासाठी किंवा काढून टाकण्यासाठी चेतना यांना WhatsApp वर संदेश पाठवा. विनंतीनंतर ७ दिवसांत मुलाची नोंद काढून टाकली जाते. १२ महिन्यांपूर्वी सोडून गेलेल्या मुलांच्या नोंदी (हिशोबासाठी फीच्या नोंदी सोडून), आणि १२ महिन्यांत वर्गात न रूपांतरित झालेल्या चौकशा आपोआप काढून टाकल्या जातात.</p>\n<h2>काही चुकलं तर</h2><p>तुमच्या मुलाची माहिती चुकून कोणी पाहिली असं आढळलं, तर आम्ही तुम्हाला लगेच कळवू आणि त्यावर काय करत आहोत ते सांगू.</p>\n<p class=\"small muted\">शेवटचा बदल: नोव्हेंबर २०२६. काही फरक आढळल्यास इंग्रजी आवृत्ती ग्राह्य.</p>", "hi": "<section class=\"stack\"><h1>गोपनीयता</h1><p class=\"lead\">छोटा और सीधा: हम क्या रखते हैं, क्यों, और उसे कैसे हटवाएँ।</p></section>\n<section class=\"card stack prose\">\n<h2>आपके बच्चे के बारे में हम क्या रखते हैं</h2><p>अच्छी तरह पढ़ाने के लिए जितना ज़रूरी: <b>पहला नाम</b>, कक्षा, बोर्ड और स्कूल, बैच, हाज़िरी, क्लास के नोट्स, इस वेबसाइट पर अभ्यास के अंक और फ़ीस का भुगतान। माता-पिता के लिए: आपका नाम और WhatsApp नंबर, रिपोर्ट और याद दिलाने के लिए।</p>\n<p>हम बच्चों के उपनाम, बच्चों की फ़ोटो या वीडियो, घर का पता, आधार या कोई भी पहचान-पत्र नंबर, या बैंक या कार्ड की जानकारी <b>नहीं रखते</b>।</p>\n<h2>क्यों</h2><p>आपके बच्चे की पढ़ाई की योजना, प्रगति का रिकॉर्ड, मासिक रिपोर्ट और फ़ीस के प्रबंधन के लिए। बस इतना ही। हम आपकी जानकारी कभी बेचते नहीं, किसी को देते नहीं, विज्ञापन के लिए इस्तेमाल नहीं करते, और विज्ञापन या ट्रैकिंग कुकीज़ का उपयोग नहीं करते।</p>\n<h2>कौन देख सकता है</h2><p>सिर्फ़ चेतना, और उनके जोड़े हुए कोई भी शिक्षक, जो सिर्फ़ अपने बैच की हाज़िरी, नोट्स और अभ्यास देख सकते हैं (माता-पिता के नंबर या फ़ीस कभी नहीं)। रिकॉर्ड चेतना के खाते की निजी Google Sheet में, 2-step verification से सुरक्षित रखे जाते हैं। बच्चे के अपने लॉगिन में (पहला नाम और 4 अंकों का PIN) सिर्फ़ उसी बच्चे के अभ्यास के सितारे और मिशन दिखते हैं।</p>\n<h2>बिना लॉगिन के अभ्यास</h2><p>बच्चे बिना लॉगिन के पढ़ाई सामग्री, किड्स वर्ल्ड, पुणे राइड और शुरुआती जाँच इस्तेमाल कर सकते हैं। वे नतीजे आपके ही डिवाइस पर रहते हैं। अगर आप शुरुआती जाँच के नतीजे चेतना को भेजते हैं या डेमो बुक करते हैं, तो वह जानकारी संपर्क के लिए उनकी निजी पूछताछ सूची में भी जाती है।</p>\n<h2>आपकी सहमति</h2><p>हम किसी बच्चे को तभी जोड़ते हैं जब माता-पिता या अभिभावक सहमति दें। आप कभी भी सहमति वापस ले सकते हैं।</p>\n<h2>देखें, सुधारें या हटवाएँ</h2><p>हमारे पास क्या है यह देखने, सुधारने या हटवाने के लिए चेतना को WhatsApp पर संदेश भेजें। अनुरोध के 7 दिनों के अंदर बच्चे का रिकॉर्ड हटा दिया जाता है। 12 महीने से पहले छोड़ चुके बच्चों के रिकॉर्ड (हिसाब के लिए फ़ीस की प्रविष्टियों को छोड़कर), और 12 महीनों में क्लास में न बदली पूछताछ अपने-आप हट जाती हैं।</p>\n<h2>अगर कुछ गलत हो</h2><p>अगर हमें पता चले कि आपके बच्चे की जानकारी किसी ऐसे व्यक्ति ने देखी जिसे नहीं देखनी चाहिए थी, तो हम आपको तुरंत बताएँगे और समझाएँगे कि हम क्या कर रहे हैं।</p>\n<p class=\"small muted\">आख़िरी बदलाव: नवंबर 2026। किसी अंतर की स्थिति में अंग्रेज़ी संस्करण मान्य होगा।</p>"};
+const PRIV_L={"mr": "<section class=\"stack\"><h1>गोपनीयता</h1><p class=\"lead\">थोडक्यात आणि सोप्या भाषेत: आम्ही काय ठेवतो, का, आणि ते कसं काढून टाकायचं.</p></section>\n<section class=\"card stack prose\">\n<h2>तुमच्या मुलाविषयी आम्ही काय ठेवतो</h2><p>चांगलं शिकवण्यासाठी आवश्यक तेवढंच: <b>पहिलं नाव</b>, इयत्ता, बोर्ड आणि शाळा, बॅच, उपस्थिती, वर्गातील नोंदी, या वेबसाइटवरील सरावाचे गुण, फी भरणा, आणि चाचणी पेपर किंवा गृहपाठाचे फोटो यांसारखी कागदपत्रे (चेतना यांच्या खाजगी Google Drive मध्ये). पालकांसाठी: तुमचं नाव आणि WhatsApp नंबर, अहवाल आणि आठवण पाठवण्यासाठी.</p>\n<p>आम्ही मुलांची आडनावं, मुलांचे फोटो किंवा व्हिडिओ, घरचा पत्ता, आधार किंवा कोणतेही ओळखपत्र क्रमांक, किंवा बँक किंवा कार्डची माहिती <b>ठेवत नाही</b>.</p>\n<h2>का</h2><p>तुमच्या मुलाच्या अभ्यासाचं नियोजन, प्रगतीची नोंद, मासिक अहवाल आणि फीचं व्यवस्थापन करण्यासाठी. एवढंच. तुमची माहिती आम्ही कधीही विकत नाही, कोणाला देत नाही किंवा जाहिरातीसाठी वापरत नाही, आणि जाहिरात किंवा ट्रॅकिंग कुकीज वापरत नाही.</p>\n<h2>कोण पाहू शकतं</h2><p>फक्त चेतना, आणि त्यांनी जोडलेले कोणतेही शिक्षक, जे फक्त स्वतःच्या बॅचची उपस्थिती, नोंदी आणि सराव पाहू शकतात (पालकांचे नंबर किंवा फी कधीच नाही). नोंदी चेतना यांच्या खात्यातील खाजगी Google Sheet मध्ये, 2-step verification ने सुरक्षित ठेवल्या जातात. मुलाच्या स्वतःच्या लॉगिनमध्ये (पहिलं नाव आणि ४ अंकी PIN) फक्त त्या मुलाचे सरावाचे तारे आणि मिशन दिसतात.</p>\n<h2>लॉगिन न करता सराव</h2><p>मुलं लॉगिन न करता अभ्यास साहित्य, किड्स वर्ल्ड, पुणे राइड आणि सुरुवातीची चाचणी वापरू शकतात. ते निकाल तुमच्याच डिव्हाइसवर राहतात. तुम्ही सुरुवातीच्या चाचणीचे निकाल चेतना यांना पाठवले किंवा डेमो बुक केला, तर ती माहिती पाठपुराव्यासाठी त्यांच्या खाजगी चौकशी यादीतही जाते.</p>\n<h2>तुमची संमती</h2><p>पालक किंवा पालकत्व असलेल्या व्यक्तीने संमती दिल्यानंतरच आम्ही मुलाची नोंद करतो. तुम्ही कधीही संमती मागे घेऊ शकता.</p>\n<h2>पाहा, दुरुस्त करा किंवा काढून टाका</h2><p>आमच्याकडे काय आहे ते पाहण्यासाठी, दुरुस्त करण्यासाठी किंवा काढून टाकण्यासाठी चेतना यांना WhatsApp वर संदेश पाठवा. विनंतीनंतर ७ दिवसांत मुलाची नोंद काढून टाकली जाते. १२ महिन्यांपूर्वी सोडून गेलेल्या मुलांच्या नोंदी (हिशोबासाठी फीच्या नोंदी सोडून), आणि १२ महिन्यांत वर्गात न रूपांतरित झालेल्या चौकशा आपोआप काढून टाकल्या जातात.</p>\n<h2>काही चुकलं तर</h2><p>तुमच्या मुलाची माहिती चुकून कोणी पाहिली असं आढळलं, तर आम्ही तुम्हाला लगेच कळवू आणि त्यावर काय करत आहोत ते सांगू.</p>\n<p class=\"small muted\">शेवटचा बदल: नोव्हेंबर २०२६. काही फरक आढळल्यास इंग्रजी आवृत्ती ग्राह्य.</p>", "hi": "<section class=\"stack\"><h1>गोपनीयता</h1><p class=\"lead\">छोटा और सीधा: हम क्या रखते हैं, क्यों, और उसे कैसे हटवाएँ।</p></section>\n<section class=\"card stack prose\">\n<h2>आपके बच्चे के बारे में हम क्या रखते हैं</h2><p>अच्छी तरह पढ़ाने के लिए जितना ज़रूरी: <b>पहला नाम</b>, कक्षा, बोर्ड और स्कूल, बैच, हाज़िरी, क्लास के नोट्स, इस वेबसाइट पर अभ्यास के अंक, फ़ीस का भुगतान, और टेस्ट पेपर या होमवर्क की फ़ोटो जैसे दस्तावेज़ (चेतना की निजी Google Drive में)। माता-पिता के लिए: आपका नाम और WhatsApp नंबर, रिपोर्ट और याद दिलाने के लिए।</p>\n<p>हम बच्चों के उपनाम, बच्चों की फ़ोटो या वीडियो, घर का पता, आधार या कोई भी पहचान-पत्र नंबर, या बैंक या कार्ड की जानकारी <b>नहीं रखते</b>।</p>\n<h2>क्यों</h2><p>आपके बच्चे की पढ़ाई की योजना, प्रगति का रिकॉर्ड, मासिक रिपोर्ट और फ़ीस के प्रबंधन के लिए। बस इतना ही। हम आपकी जानकारी कभी बेचते नहीं, किसी को देते नहीं, विज्ञापन के लिए इस्तेमाल नहीं करते, और विज्ञापन या ट्रैकिंग कुकीज़ का उपयोग नहीं करते।</p>\n<h2>कौन देख सकता है</h2><p>सिर्फ़ चेतना, और उनके जोड़े हुए कोई भी शिक्षक, जो सिर्फ़ अपने बैच की हाज़िरी, नोट्स और अभ्यास देख सकते हैं (माता-पिता के नंबर या फ़ीस कभी नहीं)। रिकॉर्ड चेतना के खाते की निजी Google Sheet में, 2-step verification से सुरक्षित रखे जाते हैं। बच्चे के अपने लॉगिन में (पहला नाम और 4 अंकों का PIN) सिर्फ़ उसी बच्चे के अभ्यास के सितारे और मिशन दिखते हैं।</p>\n<h2>बिना लॉगिन के अभ्यास</h2><p>बच्चे बिना लॉगिन के पढ़ाई सामग्री, किड्स वर्ल्ड, पुणे राइड और शुरुआती जाँच इस्तेमाल कर सकते हैं। वे नतीजे आपके ही डिवाइस पर रहते हैं। अगर आप शुरुआती जाँच के नतीजे चेतना को भेजते हैं या डेमो बुक करते हैं, तो वह जानकारी संपर्क के लिए उनकी निजी पूछताछ सूची में भी जाती है।</p>\n<h2>आपकी सहमति</h2><p>हम किसी बच्चे को तभी जोड़ते हैं जब माता-पिता या अभिभावक सहमति दें। आप कभी भी सहमति वापस ले सकते हैं।</p>\n<h2>देखें, सुधारें या हटवाएँ</h2><p>हमारे पास क्या है यह देखने, सुधारने या हटवाने के लिए चेतना को WhatsApp पर संदेश भेजें। अनुरोध के 7 दिनों के अंदर बच्चे का रिकॉर्ड हटा दिया जाता है। 12 महीने से पहले छोड़ चुके बच्चों के रिकॉर्ड (हिसाब के लिए फ़ीस की प्रविष्टियों को छोड़कर), और 12 महीनों में क्लास में न बदली पूछताछ अपने-आप हट जाती हैं।</p>\n<h2>अगर कुछ गलत हो</h2><p>अगर हमें पता चले कि आपके बच्चे की जानकारी किसी ऐसे व्यक्ति ने देखी जिसे नहीं देखनी चाहिए थी, तो हम आपको तुरंत बताएँगे और समझाएँगे कि हम क्या कर रहे हैं।</p>\n<p class=\"small muted\">आख़िरी बदलाव: नवंबर 2026। किसी अंतर की स्थिति में अंग्रेज़ी संस्करण मान्य होगा।</p>"};
 const PROGS=[
  {t:'School tuition',g:'Grades 1–10',d:'All subjects up to Grade 8, and English, Marathi and Hindi for Grades 9 and 10. Taught from your child’s own textbook and planned around school test dates.',p:['Term roadmap from the school syllabus','Revision before every unit test','Monthly progress report on WhatsApp']},
  {t:'Struggling readers',g:'Grades 1–2',d:'A 6-level phonics programme for children who find reading and writing hard, from hearing sounds to writing full sentences.',p:['10-minute starting check','Level badges parents can see','Reading speed measured every month']},
@@ -174,7 +174,7 @@ function learn(){return `<a class="kwban" href="#world"><span class="kwban-isl" 
 <a class="card lib big" href="#practice"><span class="pill">All ages</span><b>Practice: mistakes and mixed tests</b><span>Fix the questions you got wrong, take a 20-question mixed revision test, and see this week’s quest.</span></a>
 <a class="card lib big" href="#kids"><span class="pill">All ages</span><b>Quick missions</b><span>10-question games: times tables, earn and owe, Marathi letters, -ed sounds, magic e.</span></a></section>
 <section class="card stack"><h2>For teachers</h2><p class="muted">Each library has a Teacher guide tab with the big idea, how to teach it, and the mistakes to watch for.</p></section>`}
-function contactBlock(){return `<section class="contact"><div>${L(41)}<p class="small">WhatsApp: wa.me/919730195429</p></div><div class="row">${L(42)}</div></section>`}
+function contactBlock(){return `<section class="contact"><div>${L(41)}<p class="small">WhatsApp: wa.me/919730195429</p></div><div class="row">${L(42)}<a class="btn" href="#guide">${LANG==='mr'?'पालक मार्गदर्शिका':LANG==='hi'?'माता-पिता गाइड':'Parent guide'}</a></div></section>`}
 
 function pad(title,sub,needOk){return `<section class="card stack center"><h2>${esc(title)}</h2>${sub?`<p class="muted">${esc(sub)}</p>`:''}
 <div class="dots" role="status" aria-label="${buf.length} digits entered">${'●'.repeat(buf.length)||' '}</div>
@@ -199,7 +199,7 @@ function kidHome(){const st=streak(kid),tr=tricky(kid);return `
 <div class="card center"><div class="stat">${st}</div><div class="muted small">day${st===1?'':'s'} in a row</div></div>
 <div class="card center"><div class="stat">${kid.teach||0}</div><div class="muted small">teach-back missions</div></div></div>
 ${kid.note?`<div class="card"><b>From Chetana ma'am:</b> ${esc(kid.note)}</div>`:''}</section>
-${tonight()}
+${kidAssigned()}${tonight()}
 <section class="stack"><h2>Today's missions</h2><div class="grid">
 ${GK.map(k=>{const s=stat(kid,k);return `<div class="card stack"><h3>${G[k].name}</h3><p class="muted small">${G[k].sub}</p>
 <div class="bar" role="img" aria-label="${s.m} of ${s.total} mastered"><i style="width:${s.m/s.total*100}%"></i></div><p class="small muted">${s.m} of ${s.total} mastered</p>
@@ -269,7 +269,7 @@ const acts={
   next(){next()},
   teach(){kid.teach=(kid.teach||0)+1;sess.taught=true;saveKid()},
   tlock(){tpin='';tdata=null;tsel=null;gTok=null;tTedit=null;tview='today';msg='';try{google.accounts.id.disableAutoSelect()}catch(e){}render()},
-  ttab(d){tview=d.t;tsel=null;armed=null;msg='';render()},
+  ttab(d){tview=d.t;tsel=null;trm=null;armed=null;msg='';render()},
   tsel(d){tsel=d.id;armed=null;render();window.scrollTo(0,0)},
   tback(){tsel=null;armed=null;render()},
   sample(){const mk=(name,grade)=>({id:newId('s'),name,grade,pin:'1234',level:0,note:'',mistakes:[]});
@@ -1093,9 +1093,9 @@ function tDelK(kind,id){return S.tDel(tpin,kind,id).then(()=>{tdata[kind]=T(kind
 function teacher(){
   if(!tdata&&SYNC_URL&&CFG.GOOGLE_CLIENT_ID&&!gTok)return googleGate();
   if(!tdata){const first=!SYNC_URL&&!db().tpin;return pad(first?'Choose a teacher PIN':'Teacher PIN',first?'6 digits or more. Remember it: it protects this page.':'',true)}
-  const own=isOwner(),tabs=own?[['today','Today'],['students','Students'],['batches','Batches'],['fees','Fees'],['enquiries','Leads'],['help','Setup']]:[['today','Today'],['students','Students'],['help','Help']];
+  const own=isOwner(),tabs=own?[['today','Today'],['students','Students'],['notes','Notes'],['roadmaps','Roadmaps'],['assign','Assign'],['worksheets','Worksheets'],['cards','Cards'],['batches','Batches'],['fees','Fees'],['enquiries','Leads'],['help','Setup']]:[['today','Today'],['students','Students'],['notes','Notes'],['roadmaps','Roadmaps'],['assign','Assign'],['worksheets','Worksheets'],['cards','Cards'],['help','Help']];
   if(!own&&['batches','fees','enquiries','reports'].indexOf(tview)>=0)tview='today';
-  const body=tview==='reports'?reportsView():tview==='fees'&&treceipt?receiptView():tview==='today'?todayView():tview==='students'?(tsel?(own?studentDetail():teacherStudentDetail()):studentList()):tview==='batches'?batchesView():tview==='fees'?feesView():tview==='enquiries'?enquiries():help();
+  const body=tview==='assign'?assignSection():tview==='worksheets'?worksheetsView():tview==='cards'?cardsView():tview==='notes'?notesView():tview==='roadmaps'?roadmapsView():tview==='reports'?reportsView():tview==='fees'&&treceipt?receiptView():tview==='today'?todayView():tview==='students'?(tsel?(own?studentDetail():teacherStudentDetail()):studentList()):tview==='batches'?batchesView():tview==='fees'?feesView():tview==='enquiries'?enquiries():help();
   return `<section class="stack"><div class="row"><h1 style="margin-right:auto">${own?'Teacher console':'Hello, '+esc(tdata.me.name)}</h1><button class="btn ghost" data-act="tlock">Lock</button></div>
   <div class="tabs tc-tabs">${tabs.map(([k,l])=>`<button class="btn" data-act="ttab" data-t="${k}" aria-pressed="${tview===k||(tview==='reports'&&k==='students')}">${l}</button>`).join('')}</div>
   ${msg?`<p class="pill bad" role="alert">${esc(msg)}</p>`:''}</section>${body}`}
@@ -1112,6 +1112,8 @@ function todayView(){if(tcls)return classLog();
      ${b.mode==='online'&&b.link?`<a class="btn" href="${esc(b.link)}" target="_blank" rel="noopener">Open Meet</a>`:''}<button class="btn ${c?'':'go'}" data-act="topencls" data-b="${b.id}">${c?'Edit log':'Take attendance'}</button></div>`}).join('')
    :`<p class="muted">${T('batches').length?'No regular classes on this day.':'Add your batches in the <b>Batches</b> tab, and they will show here on their days.'}</p>`}
   ${other.length?`<div class="row"><label class="grow">Extra or make-up class<select id="tc-extra">${other.map(b=>`<option value="${b.id}">${esc(b.name)}</option>`).join('')}</select></label><button class="btn" data-act="textra">Log it</button></div>`:''}</section>
+  ${(()=>{const hm=hwMissingAll();return hm.length?`<section class="card stack"><h3>\ud83d\udcda Homework missing (last 2 weeks)</h3>${hm.slice(0,8).map(x=>`<p class="small" style="margin:0">${x}</p>`).join('')}</section>`:''})()}
+  ${(()=>{const al=rmAlerts();return al.length?`<section class="card stack rmalert"><h3>\u23f0 Roadmap alerts</h3>${al.map(x=>`<p>${x}</p>`).join('')}<button class="btn" data-act="ttab" data-t="roadmaps">Open roadmaps</button></section>`:''})()}
   ${isOwner()?`<section class="tc-stats"><button class="card center tc-stat" data-act="ttab" data-t="fees"><div class="stat">${feeDue.length}</div><div class="muted small">fees pending for ${monthName(m).split(' ')[0]}</div></button>
    <button class="card center tc-stat" data-act="ttab" data-t="enquiries"><div class="stat">${newL.length}</div><div class="muted small">leads to follow up</div></button>
    <button class="card center tc-stat" data-act="ttab" data-t="students"><div class="stat">${active().length}</div><div class="muted small">active students</div></button></section>`:''}
@@ -1122,7 +1124,9 @@ function classLog(){const b=T('batches').find(x=>x.id===tcls);if(!b){tcls=null;r
   return `<div class="row"><button class="btn" data-act="tclose">← Today</button></div>
   <form class="card stack" data-form="savecls"><h2>${esc(b.name)}</h2><p class="muted">${prettyDate(tdate)} · ${esc(b.time||'')}</p>
   <fieldset class="fld"><legend>Attendance: tap a name to mark absent</legend><div class="tc-att">${ss.length?ss.map(s=>`<label class="tc-kid"><input type="checkbox" name="att" value="${s.id}" ${abs.indexOf(s.id)<0?'checked':''}><span>${esc(s.name)}</span></label>`).join(''):'<p class="muted">No students in this batch yet. Set the batch on each student’s page.</p>'}</div></fieldset>
+  ${hwCheckBlock(b)}
   <label>What I taught<input id="cl-topic" maxlength="120" value="${esc(c.topic||'')}" placeholder="e.g. Fractions: equivalent fractions"></label>
+  ${(()=>{const rs=T('roadmaps').filter(r=>r.batch===b.id&&(r.chapters||[]).some(ch=>!ch.done||ch.done===tdate));return rs.length?`<fieldset class="fld"><legend>Chapters finished today (roadmap)</legend>${rs.map(r=>`<div class="row">${r.chapters.map((ch,i)=>!ch.done||ch.done===tdate?`<label class="ckband"><input type="checkbox" name="rmc" value="${r.id}|${i}" ${ch.done===tdate?'checked':''}> ${esc(r.subject)}: ${esc(ch.t)}</label>`:'').join('')}</div>`).join('')}</fieldset>`:''})()}
   <label>Homework given<input id="cl-hw" maxlength="160" value="${esc(c.homework||'')}" placeholder="e.g. Textbook p.42, Q1–10"></label>
   ${ss.length?`<details${Object.keys(notes).length?' open':''}><summary>Notes about a child (optional)</summary><div class="stack">${ss.map(s=>`<label>${esc(s.name)}<input name="note" data-sid="${s.id}" maxlength="140" value="${esc(notes[s.id]||'')}" placeholder="e.g. confused about carry-over"></label>`).join('')}</div></details>`:''}
   <div class="row"><button class="btn go">Save class log</button>${c.id?`<button type="button" class="btn bad" data-act="tdelcls">${armed==='c'?'Tap again to delete':'Delete log'}</button>`:''}</div></form>`}
@@ -1157,7 +1161,7 @@ function studentList(){const all=T('students').slice().sort((a,b)=>a.name.locale
    <div class="small muted">${b?esc(b.name):'No batch'} · attended ${a.p}/${a.t} this month · ★ ${s.stars||0}</div></div>
    ${f===false?'<span class="pill bad">Fee due</span>':''}${tr.length?`<span class="pill">${tr.length} tricky</span>`:''}<button class="btn" data-act="tsel" data-id="${esc(s.id)}">Open</button></div>`};
   if(!isOwner())return `<section class="card">${ss.map(row).join('')||'<p class="muted">No students in your batches yet.</p>'}</section>`;
-  return `${ss.length?`<div class="row"><button class="btn go" data-act="treports">Send monthly reports</button></div>`:''}<section class="card">${ss.length?ss.map(row).join(''):`<p class="muted">No students yet. Add the first one below.</p>`}</section>
+  return `${ss.length?`<div class="row"><button class="btn go" data-act="treports">Weekly updates and monthly reports</button></div>`:''}<section class="card">${ss.length?ss.map(row).join(''):`<p class="muted">No students yet. Add the first one below.</p>`}</section>
   ${left.length?`<details class="card"><summary>Past students (${left.length})</summary>${left.map(row).join('')}</details>`:''}
   <form class="card stack" data-form="addstudent"><h3>Add a student</h3>
   <div class="row"><label>First name<input id="as-name" required maxlength="20"></label><label>Grade<input id="as-grade" inputmode="numeric" maxlength="2"></label><label>4-digit PIN<input id="as-pin" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" required></label></div>
@@ -1175,6 +1179,7 @@ function report(s){const lines=['*'+s.name+"'s progress* (Chetana's Tutoring)"],
   Object.keys(MODS).forEach(m2=>{if(modDone(s,m2))lines.push(MODS[m2].name+': '+modDone(s,m2)+' of '+MODS[m2].ch.length+' chapter badges')});
   const tr=tricky(s);if(tr.length)lines.push('Still practising: '+tr.slice(0,6).join(', '));
   cs.forEach(c=>lines.push('Class note ('+c.date+'): '+c.notes[s.id]));
+  {const mf=m+'-01',hs=hwStats(s.id,mf,m+'-31');if(hs.t)lines.push(`Homework this month: ${hs.d} done${hs.l?', '+hs.l+' late':''}${hs.m?', '+hs.m+' missing':''}`);const ml=marksLine(s,mf);if(ml)lines.push(ml)}
   if(s.note)lines.push('Note: '+s.note);return lines.join('\n')}
 
 function studentDetail(){const s=T('students').find(x=>x.id===tsel);if(!s){tsel=null;return studentList()}
@@ -1193,6 +1198,9 @@ function studentDetail(){const s=T('students').find(x=>x.id===tsel);if(!s){tsel=
   <label>Note for the child and parents<textarea id="es-note" rows="2" maxlength="300">${esc(s.note||'')}</textarea></label>
   <div class="row"><button class="btn navy">Save</button><button type="button" class="btn bad" data-act="tdelstudent">${armed==='s'?'Tap again to delete':'Delete student'}</button></div>
   <p class="small muted">If a child stops coming, set Status to Left instead of deleting, so fee and class history stay.</p></form>
+  <section class="card stack"><h3>Notes</h3>${notesFor(s.id).slice(0,8).map(noteRow).join('')||'<p class="muted small">No notes yet.</p>'}${noteForm(s.id)}</section>
+  ${marksSection(s)}
+  ${docsSection(s)}
   <section class="card stack"><h3>Classes</h3><p><b>${a.p} of ${a.t}</b> attended in ${monthName(m)}.</p>
   ${hist.length?hist.map(c=>{const b=T('batches').find(x=>x.id===c.batch);const here=c.present.indexOf(s.id)>=0;return `<div class="item"><div class="grow"><b>${esc(c.date)}</b> ${here?'<span class="pill ok">Present</span>':'<span class="pill bad">Absent</span>'} <span class="small muted">${b?esc(b.name):''}</span>
     ${c.topic?`<div class="small">${esc(c.topic)}</div>`:''}${c.notes&&c.notes[s.id]?`<div class="small"><b>Note:</b> ${esc(c.notes[s.id])}</div>`:''}</div></div>`}).join(''):'<p class="muted small">No classes logged yet. Use the Today tab after each class.</p>'}</section>
@@ -1262,7 +1270,9 @@ Object.assign(forms,{
   savecls(){const b=T('batches').find(x=>x.id===tcls),ss=inBatch(b),on=[...document.querySelectorAll('input[name=att]:checked')].map(x=>x.value),notes={};
     document.querySelectorAll('input[name=note]').forEach(x=>{if(x.value.trim())notes[x.dataset.sid]=x.value.trim()});
     const c={id:clsId(b.id,tdate),batch:b.id,date:tdate,present:ss.filter(s=>on.indexOf(s.id)>=0).map(s=>s.id),absent:ss.filter(s=>on.indexOf(s.id)<0).map(s=>s.id),topic:val('cl-topic'),homework:val('cl-hw'),notes};
-    tcls=null;tPutK('classes',c)},
+    const ticks=[...document.querySelectorAll('input[name=rmc]')].map(x=>[x.value,x.checked]);tcls=null;
+    tPutK('classes',c).then(()=>{const by={};ticks.forEach(([v,on])=>{const[rid,i]=v.split('|'),r=T('roadmaps').find(x=>x.id===rid);if(!r)return;const ch=r.chapters[+i],want=on?tdate:(ch.done===tdate?'':ch.done);if(ch.done!==want){ch.done=want;by[rid]=r}});
+      return Promise.all(Object.values(by).map(saveRm))})},
   addenq(){const e={id:newId('e'),parent:val('ae-parent'),child:val('ae-child'),grade:val('ae-grade'),phone:val('ae-phone'),source:val('ae-source'),note:val('ae-note'),status:'New',date:today()};tPutK('enquiries',e)}
 });
 document.addEventListener('change',e=>{const t=e.target;if(t.dataset.change==='tdate'&&t.value){tdate=t.value;tcls=null;render()}if(t.dataset.change==='tmonth'&&t.value){tmonth=t.value;armed=null;render()}});
@@ -1271,7 +1281,7 @@ document.addEventListener('change',e=>{const t=e.target;if(t.dataset.change==='t
 function privacy(){if(LANG!=='en')return PRIV_L[LANG]+`<div class="row"><a class="btn go" href="${WA}" target="_blank" rel="noopener">${LANG==='mr'?'चेतना यांना संदेश पाठवा':'चेतना को संदेश भेजें'}</a></div></section>`;return `<section class="stack"><h1>Privacy</h1><p class="lead">Short and plain: what we keep, why, and how to get it removed.</p></section>
 <section class="card stack prose">
 <h2>What we keep about your child</h2>
-<p>Only what we need to teach well: <b>first name</b>, grade, board and school, batch, attendance, class notes, practice scores on this website, and fee payments. For parents: your name and WhatsApp number, so we can send reports and reminders.</p>
+<p>Only what we need to teach well: <b>first name</b>, grade, board and school, batch, attendance, class notes, practice scores on this website, fee payments, and documents such as test papers or homework photos (kept in Chetana’s private Google Drive). For parents: your name and WhatsApp number, so we can send reports and reminders.</p>
 <p>We do <b>not</b> keep surnames of children, photos or videos of children, home addresses, Aadhaar or any ID numbers, or bank or card details.</p>
 <h2>Why</h2><p>To plan your child’s lessons, track progress, send you monthly reports, and manage fees. Nothing else. We never sell, share or advertise with your data, and we do not use advertising or tracking cookies.</p>
 <h2>Who can see it</h2><p>Only Chetana, and any teacher she adds, who sees only their own batches’ attendance, class notes and practice (never parents’ numbers or fees). The records are kept in a private Google Sheet in her account, protected by 2-step verification. The teacher area of this website opens only with her PIN. A child’s own login (first name and a 4-digit PIN) shows only that child’s practice stars and missions.</p>
@@ -1305,18 +1315,11 @@ function receiptView(){const f=T('fees').find(x=>x.id===treceipt),s=f&&T('studen
   <div class="row noprint"><button class="btn go" data-act="tprint">Print or save as PDF</button>${wl?`<a class="btn" href="${wl}" target="_blank" rel="noopener">Send on WhatsApp</a>`:''}</div>`}
 
 /* monthly reports: one list, one tap each */
-function reportsView(){const m=trepm,sent=ls.get('ct_rep_'+m)||[],ss=active().sort((a,b)=>a.name.localeCompare(b.name));
-  return `<div class="row"><button class="btn" data-act="tback">← Students</button></div>
-  <section class="card stack"><div class="row"><h2 style="margin-right:auto">Monthly reports</h2><input type="month" value="${m}" data-change="trepm" aria-label="Report month" style="width:auto"></div>
-  <p class="muted">${sent.length} of ${ss.length} sent for ${monthName(m)}. Tap Send: WhatsApp opens with the report ready; press send there, then come back for the next one.</p>
-  ${ss.map(s=>{const t=report(s),l=waLink(s.phone,t),done=sent.indexOf(s.id)>=0;return `<details class="item rp${done?' sent':''}"><summary><b>${esc(s.name)}</b> ${done?'<span class="pill ok">Sent</span>':''}${l?'':'<span class="pill bad">No WhatsApp number</span>'}</summary><pre class="msg">${esc(t)}</pre></details>
-   ${l?`<a class="btn ${done?'':'go'}" href="${l}" target="_blank" rel="noopener" data-rsent="${s.id}">${done?'Send again':'Send'}</a>`:''}`}).join('')}</section>`}
-document.addEventListener('click',e=>{const a=e.target.closest('a[data-rsent]');if(!a)return;const k='ct_rep_'+trepm,l=ls.get(k)||[];if(l.indexOf(a.dataset.rsent)<0){l.push(a.dataset.rsent);ls.set(k,l)}setTimeout(render,300)});
 document.addEventListener('change',e=>{if(e.target.dataset.change==='trepm'&&e.target.value){trepm=e.target.value;render()}});
 Object.assign(acts,{
   trclose(){treceipt=null;render()},tprint(){window.print()},
   treceipt(d){treceipt=d.id;render();window.scrollTo(0,0)},
-  treports(){tview='reports';tsel=null;render();window.scrollTo(0,0)},
+  treports(){tview='reports';trepMode='week';tsel=null;render();window.scrollTo(0,0)},
   tpaid(d){const s=T('students').find(x=>x.id===d.id),id='f_'+s.id+'_'+tmonth;
     tPutK('fees',{id,sid:s.id,month:tmonth,amount:+s.fee,paid:true,mode:d.m,date:today(),rno:nextReceipt(tmonth)}).then(()=>{treceipt=id;render()})}
 });
@@ -1337,6 +1340,9 @@ function teacherStudentDetail(){const s=T('students').find(x=>x.id===tsel);if(!s
   <form class="card stack" data-form="tsavenotes"><h2>${esc(s.name)}</h2><p class="muted">Grade ${esc(s.grade||'?')} · attended ${a.p} of ${a.t} in ${monthName(m)}</p>
   <label>Reading level<select id="es-level">${LEVELS.map((l,i)=>`<option value="${i}" ${i==(s.level||0)?'selected':''}>${l}</option>`).join('')}</select></label>
   <label>Note for the child and parents<textarea id="es-note" rows="2" maxlength="300">${esc(s.note||'')}</textarea></label><div class="row"><button class="btn navy">Save</button></div></form>
+  <section class="card stack"><h3>Notes</h3>${notesFor(s.id).slice(0,8).map(noteRow).join('')||'<p class="muted small">No notes yet.</p>'}${noteForm(s.id)}</section>
+  ${marksSection(s)}
+  ${docsSection(s)}
   <section class="card stack"><h3>Classes</h3>${hist.map(c=>`<div class="small"><b>${esc(c.date)}</b> ${c.present.indexOf(s.id)>=0?'Present':'Absent'}${c.topic?' · '+esc(c.topic):''}${c.notes&&c.notes[s.id]?' · <i>'+esc(c.notes[s.id])+'</i>':''}</div>`).join('')||'<p class="muted small">No classes logged yet.</p>'}</section>
   <section class="card stack"><h3>Mistake bank from class</h3>
   ${(s.mistakes||[]).map(mm=>`<div class="item"><div class="grow ${mm.fixed?'muted':''}">${mm.fixed?'<s>'+esc(mm.text)+'</s>':esc(mm.text)}</div><button class="btn" data-act="mfix" data-id="${mm.id}">${mm.fixed?'Reopen':'Mark fixed'}</button></div>`).join('')}
@@ -1385,7 +1391,7 @@ function questCard(){const q=questState(),ts=questTasks(),tro=ls.get('ct_trophie
   ${ts.map(t=>{const n=Math.min(q.ev[t.ev]||0,t.n),ok=n>=t.n;return `<a class="qt${ok?' ok':''}" href="${t.href}"><span aria-hidden="true">${ok?'✅':'⬜'}</span><span class="grow">${t.t}</span><b>${n}/${t.n}</b></a>`}).join('')}
   <p class="small muted">${q.done?'Quest complete! A new one starts on Monday.':'Finish all three by Sunday to win a trophy.'}</p></section>`}
 /* Tonight's 10 minutes */
-function tonight(){const out=[],mx=mxList().length,prog=kid?(kid.progress||{}):(ls.get('ct_ph')||{});
+function tonight(){const out=[],asg=(kid&&kid.assign||[]).filter(a=>!asgDone(a,kid.progress));if(asg.length)out.push(['\ud83d\udccc',asgLabel(asg[0]),'Set by Chetana ma\u2019am','#'+asg[0].mod,'5 min']);const _x=0,mx=mxList().length,prog=kid?(kid.progress||{}):(ls.get('ct_ph')||{});
   if(mx>=3)out.push(['🔁','Fix your mistakes',`${Math.min(mx,10)} questions you got wrong before`,'#practice','3 min']);
   for(const m of Object.keys(MODS)){const M=MODS[m];if(!M.ch)continue;const c=M.ch.find(c=>{const s=chState(prog,m,c);return s.played&&!s.done});
     if(c){out.push(['📘',M.name+': '+c.title,'Carry on where you stopped','#'+m,'4 min']);break}}
@@ -1440,7 +1446,7 @@ let toy={tab:'shapes',shape:'cube',edges:true,q:null,fb:null,num:347,cake:{n:4,s
 function toyQ(){const t=toy.tab;
   if(t==='shapes'){const s=one(SHAPES),what=one(['f','e','v','name']);toy.shape=s.k;
     if(what==='name')return{ask:'Which shape is this?',a:s.n,opts:shuffle([s.n,...sample(SHAPES.filter(x=>x!==s).map(x=>x.n),3)])};
-    const w={f:'faces',e:'edges',v:'vertices (corners)'}[what],a=s[what];return{ask:`How many ${w} does a ${s.n.toLowerCase()} have?`,a:String(a),opts:shuffle(uniq([a,a+1,Math.max(0,a-1),a+2,a+4].map(String))).slice(0,4).concat([]).sort((x,y)=>x-y)}}
+    const w={f:'faces',e:'edges',v:'vertices (corners)'}[what],a=s[what];return{ask:`How many ${w} does a ${s.n.toLowerCase()} have?`,a:String(a),opts:[String(a)].concat(shuffle(uniq([a+1,a-1,a+2,a+4,a-2].filter(x=>x>=0&&x!==a).map(String))).slice(0,3)).sort((x,y)=>x-y)}}
   if(t==='place'){const n=rnd(11,999);toy.num=n;const kind=one(['read','h','t','o']);
     if(kind==='read')return{ask:'What number do the blocks show?',a:String(n),num:true};
     const p={h:['hundreds',Math.floor(n/100)],t:['tens',Math.floor(n/10)%10],o:['ones',n%10]}[kind];
@@ -1538,14 +1544,346 @@ function reportError(m,src,line){if(!SYNC_URL||errSent>=3)return;errSent++;
 window.addEventListener('error',e=>reportError(e.message,e.filename,e.lineno));
 window.addEventListener('unhandledrejection',e=>{const r=e.reason;if(r&&/offline|Wrong PIN|Too many|Google sign-in|Only Chetana/.test(r.message||''))return;reportError('promise: '+(r&&r.message||r),'',0)});
 
+/* ====== Teacher console: notebook, weekly updates, subject roadmaps, documents ====== */
+const NTAGS=['Note','Parent call','Concern','Win','Homework','Test result'];
+let tnote={sid:'',tag:''},trm=null,trepw=null,trepMode='month';
+const mondayOf=d=>{const x=new Date(d+'T00:00'),k=(x.getDay()+6)%7;x.setDate(x.getDate()-k);return x.toISOString().slice(0,10)};
+const addDays=(d,n)=>{const x=new Date(d+'T00:00');x.setDate(x.getDate()+n);return x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0')};
+const prettyShort=d=>new Date(d+'T00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short'});
+/* ---------- Notebook ---------- */
+function notesFor(sid){return T('notes').filter(n=>n.sid===sid).sort((a,b)=>(b.date+b.id).localeCompare(a.date+a.id))}
+function noteRow(n){const s=n.sid&&T('students').find(x=>x.id===n.sid),b=n.batch&&T('batches').find(x=>x.id===n.batch);
+  return `<div class="item note"><div class="grow"><div class="small muted">${esc(prettyShort(n.date))} · <span class="pill">${esc(n.tag||'Note')}</span> ${s?'· <b>'+esc(s.name)+'</b>':b?'· '+esc(b.name):''}${n.by?' · '+esc(n.by):''}</div><div>${esc(n.text).replace(/\n/g,'<br>')}</div></div>
+  <button class="btn ghost" data-act="tndel" data-id="${n.id}">${armed==='n'+n.id?'Tap again':'Delete'}</button></div>`}
+function noteForm(sid){return `<form class="stack" data-form="addnote"><div class="row">
+  ${sid?`<input type="hidden" id="nt-sid" value="${esc(sid)}">`:`<label>About<select id="nt-sid"><option value="">General</option>${active().sort((a,b)=>a.name.localeCompare(b.name)).map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join('')}</select></label>`}
+  <label>Type<select id="nt-tag">${NTAGS.map(t=>`<option>${t}</option>`).join('')}</select></label><label>Date<input id="nt-date" type="date" value="${today()}"></label></div>
+  <label>Note<textarea id="nt-text" rows="3" maxlength="1000" required placeholder="e.g. Mother called: wants extra Marathi reading before the unit test"></textarea></label>
+  <div class="row"><button class="btn navy">Save note</button></div></form>`}
+function notesView(){const f=tnote,list=T('notes').filter(n=>(!f.sid||n.sid===f.sid)&&(!f.tag||n.tag===f.tag)).sort((a,b)=>(b.date+b.id).localeCompare(a.date+a.id));
+  return `<section class="card stack"><h2>Add a note</h2>${noteForm('')}</section>
+  <section class="card stack"><div class="row"><h2 style="margin-right:auto">Notebook</h2>
+   <select aria-label="Filter by student" data-change="tnsid" style="width:auto"><option value="">Everyone</option>${active().map(s=>`<option value="${s.id}" ${f.sid===s.id?'selected':''}>${esc(s.name)}</option>`).join('')}</select>
+   <select aria-label="Filter by type" data-change="tntag" style="width:auto"><option value="">All types</option>${NTAGS.map(t=>`<option ${f.tag===t?'selected':''}>${t}</option>`).join('')}</select></div>
+  ${list.slice(0,60).map(noteRow).join('')||'<p class="muted">No notes yet.</p>'}</section>`}
+/* ---------- Weekly updates ---------- */
+function weekReport(s,wk){const end=addDays(wk,6),inW=d=>d>=wk&&d<=end;
+  const cs=T('classes').filter(c=>inW(c.date)&&((c.present||[]).indexOf(s.id)>=0||(c.absent||[]).indexOf(s.id)>=0)).sort((a,b)=>a.date.localeCompare(b.date));
+  const here=cs.filter(c=>c.present.indexOf(s.id)>=0),L=[`*${s.name}'s week* (${prettyShort(wk)} – ${prettyShort(end)}) – Chetana's Tutoring`];
+  L.push(cs.length?`Classes: attended ${here.length} of ${cs.length}`:'No classes this week');
+  const topics=uniq(here.map(c=>c.topic).filter(Boolean));if(topics.length)L.push('We covered: '+topics.join('; '));
+  const hw=cs.filter(c=>c.homework).map(c=>prettyShort(c.date)+': '+c.homework);if(hw.length)L.push('Homework: '+hw.join(' | '));
+  cs.filter(c=>c.notes&&c.notes[s.id]).forEach(c=>L.push('Note ('+prettyShort(c.date)+'): '+c.notes[s.id]));
+  T('notes').filter(n=>n.sid===s.id&&inW(n.date)&&['Win','Test result','Homework'].indexOf(n.tag)>=0).forEach(n=>L.push(n.tag+': '+n.text));
+  const hs=hwStats(s.id,wk,end);if(hs.t)L.push(`Homework: ${hs.d} done${hs.l?', '+hs.l+' late':''}${hs.m?', '+hs.m+' missing':''}`);
+  {const mk=marksFor(s.id).filter(m=>inW(m.date));if(mk.length)L.push('Test marks: '+mk.map(m=>`${m.subject} ${m.test} ${m.score}/${m.outOf}`).join('; '))}
+  const days=(s.sessions||[]).filter(inW).length;if(days)L.push('Practised online on '+days+' day'+(days===1?'':'s')+'. ⭐');
+  const tr=tricky(s);if(tr.length)L.push('Practise at home: '+tr.slice(0,4).join(', '));
+  const up=rmUpcoming(s.batch);if(up)L.push('Coming up: '+up);
+  return L.join('\n')}
+function reportsView(){const weekly=trepMode==='week',wk=trepw||mondayOf(today()),key=weekly?'ct_wrep_'+wk:'ct_rep_'+trepm,sent=ls.get(key)||[],ss=active().sort((a,b)=>a.name.localeCompare(b.name));
+  return `<div class="row"><button class="btn" data-act="tback">← Students</button></div>
+  <section class="card stack"><div class="tabs"><button class="btn" data-act="trepmode" data-m="week" aria-pressed="${weekly}">Weekly updates</button><button class="btn" data-act="trepmode" data-m="month" aria-pressed="${!weekly}">Monthly reports</button></div>
+  <div class="row"><h2 style="margin-right:auto">${weekly?'Week of '+prettyShort(wk):monthName(trepm)}</h2>${weekly?`<button class="btn" data-act="trepwk" data-d="-7" aria-label="Previous week">‹</button><button class="btn" data-act="trepwk" data-d="7" aria-label="Next week">›</button>`:`<input type="month" value="${trepm}" data-change="trepm" aria-label="Report month" style="width:auto">`}</div>
+  <p class="muted">${sent.length} of ${ss.length} sent. Tap Send: WhatsApp opens with the message ready; press send there, then come back for the next one.</p>
+  ${ss.map(s=>{const t=weekly?weekReport(s,wk):report(s),l=waLink(s.phone,t),done=sent.indexOf(s.id)>=0;return `<details class="item rp${done?' sent':''}"><summary><b>${esc(s.name)}</b> ${done?'<span class="pill ok">Sent</span>':''}${l?'':'<span class="pill bad">No WhatsApp number</span>'}</summary><pre class="msg">${esc(t)}</pre></details>
+   ${l?`<a class="btn ${done?'':'go'}" href="${l}" target="_blank" rel="noopener" data-rsent="${s.id}" data-rkey="${key}">${done?'Send again':'Send'}</a>`:''}`}).join('')}</section>`}
+/* ---------- Subject roadmaps ---------- */
+function rmStats(r){const ch=r.chapters||[],done=ch.filter(c=>c.done).length,t=today(),late=ch.filter(c=>!c.done&&c.plan&&c.plan<t).length,
+  nextTest=(r.tests||[]).filter(x=>x.d>=t).sort((a,b)=>a.d.localeCompare(b.d))[0],left=nextTest?ch.filter(c=>!c.done&&(!c.plan||c.plan<=nextTest.d)).length:0;
+  return{done,total:ch.length,late,nextTest,left,status:!ch.length?'empty':done===ch.length?'done':late?'behind':'on track'}}
+function rmUpcoming(batch){const rs=T('roadmaps').filter(r=>r.batch===batch);const out=[];
+  rs.forEach(r=>{const st=rmStats(r);if(st.nextTest)out.push(`${r.subject} ${st.nextTest.name} on ${prettyShort(st.nextTest.d)}`)});return out.join('; ')}
+function rmAlerts(){const out=[],t=today(),lim=addDays(t,14);
+  T('roadmaps').forEach(r=>{const st=rmStats(r),b=T('batches').find(x=>x.id===r.batch);if(st.nextTest&&st.nextTest.d<=lim&&st.left)out.push(`<b>${esc(b?b.name:'')}</b> ${esc(r.subject)}: ${esc(st.nextTest.name)} on ${prettyShort(st.nextTest.d)}, ${st.left} chapter${st.left===1?'':'s'} still to finish`);
+    else if(st.late)out.push(`<b>${esc(b?b.name:'')}</b> ${esc(r.subject)}: ${st.late} chapter${st.late===1?'':'s'} behind plan`)});return out}
+function roadmapsView(){if(trm)return roadmapDetail();const rs=T('roadmaps'),bs=T('batches');
+  return `<section class="card stack"><h2>Subject roadmaps</h2><p class="muted">One roadmap per batch and subject: chapters from the school syllabus, the week you plan to teach each one, and school test dates. Ticking chapters in the class log keeps it up to date.</p>
+  ${rs.map(r=>{const st=rmStats(r),b=bs.find(x=>x.id===r.batch);return `<button class="item rmrow" data-act="trmopen" data-id="${r.id}"><div class="grow"><b>${esc(b?b.name:'?')} · ${esc(r.subject)}</b>
+    <div class="bar"><i style="width:${st.total?st.done/st.total*100:0}%"></i></div><div class="small muted">${st.done} of ${st.total} chapters${st.nextTest?' · next: '+esc(st.nextTest.name)+' '+prettyShort(st.nextTest.d):''}</div></div>
+    <span class="pill ${st.status==='behind'?'bad':st.status==='done'||st.status==='on track'?'ok':''}">${st.status}</span></button>`}).join('')||''}
+  ${isOwner()?`<form class="row" data-form="addrm"><label>Batch<select id="rm-b">${bs.map(b=>`<option value="${b.id}">${esc(b.name)}</option>`).join('')}</select></label><label class="grow">Subject<input id="rm-s" required maxlength="40" placeholder="e.g. Maths"></label><button class="btn go">Create roadmap</button></form>`:''}
+  ${bs.length?'':'<p class="muted">Add a batch first.</p>'}</section>`}
+function roadmapDetail(){const r=T('roadmaps').find(x=>x.id===trm);if(!r){trm=null;return roadmapsView()}const b=T('batches').find(x=>x.id===r.batch),st=rmStats(r),t=today(),own=isOwner();
+  return `<div class="row"><button class="btn" data-act="trmclose">← All roadmaps</button></div>
+  <section class="card stack"><div class="row"><h2 style="margin-right:auto">${esc(b?b.name:'')} · ${esc(r.subject)}</h2><span class="pill ${st.status==='behind'?'bad':'ok'}">${st.status}</span></div>
+  <div class="bar"><i style="width:${st.total?st.done/st.total*100:0}%"></i></div><p class="small muted">${st.done} of ${st.total} chapters done${st.late?`, ${st.late} behind plan`:''}.</p>
+  ${(r.chapters||[]).map((c,i)=>`<div class="item rmch${c.done?' done':c.plan&&c.plan<t?' late':''}"><label class="grow rmtick"><input type="checkbox" data-change="rmdone" data-i="${i}" ${c.done?'checked':''}> <span>${i+1}. ${esc(c.t)}</span></label>
+   <span class="small muted">${c.done?'Done '+prettyShort(c.done):c.plan?'Plan: week of '+prettyShort(c.plan):'Not planned'}</span>
+   ${own?`<input type="date" value="${esc(c.plan||'')}" data-change="rmplan" data-i="${i}" aria-label="Planned week for ${esc(c.t)}" style="width:auto">`:''}</div>`).join('')||'<p class="muted">No chapters yet.</p>'}</section>
+  ${own?`<section class="card stack"><h3>Add chapters</h3><form class="stack" data-form="rmaddch"><label>One chapter per line, in teaching order<textarea id="rm-ch" rows="5" placeholder="Large numbers&#10;Addition and subtraction&#10;Multiplication"></textarea></label><div class="row"><button class="btn navy">Add chapters</button></div></form>
+  <form class="row" data-form="rmspread"><label>Start<input id="rm-from" type="date" value="${t}"></label><label>Finish by<input id="rm-to" type="date" required></label><button class="btn">Plan the weeks for me</button></form>
+  <p class="small muted">Spreads the unfinished chapters evenly, one week each or more, between the two dates. You can change any week afterwards.</p></section>
+  <section class="card stack"><h3>School tests</h3>${(r.tests||[]).slice().sort((a,c)=>a.d.localeCompare(c.d)).map(x=>`<div class="item"><div class="grow"><b>${esc(x.name)}</b> <span class="small muted">${prettyShort(x.d)}</span></div><button class="btn ghost" data-act="rmdeltest" data-d="${esc(x.d)}" data-n="${esc(x.name)}">Remove</button></div>`).join('')||'<p class="muted small">No test dates yet.</p>'}
+  <form class="row" data-form="rmtest"><label class="grow">Test<input id="rm-tn" required maxlength="40" placeholder="e.g. Unit test 2"></label><label>Date<input id="rm-td" type="date" required></label><button class="btn navy">Add</button></form></section>
+  <div class="row"><button class="btn bad" data-act="trmdel">${armed==='rm'?'Tap again to delete this roadmap':'Delete roadmap'}</button></div>`:''}`}
+const saveRm=r=>tPutK('roadmaps',r);
+/* ---------- Documents (Drive) ---------- */
+const DOC_OK=/^(application\/pdf|image\/(jpeg|png|webp)|application\/vnd\.openxmlformats-officedocument\.(wordprocessingml\.document|spreadsheetml\.sheet|presentationml\.presentation)|application\/msword)$/;
+function docsSection(s){if(!SYNC_URL)return `<section class="card stack"><h3>Documents</h3><p class="muted">Uploading documents needs the Google Sheet connection.</p></section>`;
+  const ds=T('docs').filter(d=>d.sid===s.id).sort((a,b)=>b.date.localeCompare(a.date));
+  return `<section class="card stack"><h3>Documents</h3><p class="small muted">Test papers, worksheets, photos of homework. Saved privately in your Google Drive, folder “Tutoring documents”. PDF, photo, Word, Excel or PowerPoint, up to 5 MB.</p>
+  ${ds.map(d=>`<div class="item"><div class="grow"><a href="https://drive.google.com/file/d/${encodeURIComponent(d.fileId)}/view" target="_blank" rel="noopener"><b>${esc(d.name)}</b></a><div class="small muted">${esc(d.subject||'General')} · ${esc(prettyShort(d.date))} · ${Math.max(1,Math.round(d.size/1024))} KB${d.by?' · '+esc(d.by):''}</div></div>${isOwner()?`<button class="btn ghost" data-act="tdocdel" data-id="${d.id}">${armed==='d'+d.id?'Tap again':'Delete'}</button>`:''}</div>`).join('')||'<p class="muted small">No documents yet.</p>'}
+  <form class="row" data-form="docup"><label class="grow">File<input id="doc-f" type="file" accept=".pdf,image/*,.doc,.docx,.xlsx,.pptx" required></label><label>Subject<input id="doc-s" maxlength="30" placeholder="e.g. Maths"></label><button class="btn navy">Upload</button></form>
+  ${isOwner()?'':'<p class="small muted">Only Chetana can open the files.</p>'}</section>`}
+Object.assign(acts,{
+  tndel(d){if(armed!=='n'+d.id){armed='n'+d.id;render();return}tDelK('notes',d.id)},
+  trepmode(d){trepMode=d.m;render()},trepwk(d){trepw=addDays(trepw||mondayOf(today()),+d.d);render()},
+  trmopen(d){trm=d.id;armed=null;render();window.scrollTo(0,0)},trmclose(){trm=null;armed=null;render()},
+  trmdel(){if(armed!=='rm'){armed='rm';render();return}const id=trm;trm=null;tDelK('roadmaps',id)},
+  rmdeltest(d){const r=T('roadmaps').find(x=>x.id===trm);r.tests=(r.tests||[]).filter(x=>!(x.d===d.d&&x.name===d.n));saveRm(r)},
+  tdocdel(d){if(armed!=='d'+d.id){armed='d'+d.id;render();return}tDelK('docs',d.id)}
+});
+Object.assign(forms,{
+  addnote(){const o={id:newId('n'),sid:val('nt-sid'),tag:val('nt-tag'),date:val('nt-date')||today(),text:val('nt-text'),by:isOwner()?'':(tdata.me||{}).name||''};if(!o.text)return;tPutK('notes',o).then(()=>toast('Note saved.'))},
+  addrm(){const o={id:newId('r'),batch:val('rm-b'),subject:val('rm-s'),chapters:[],tests:[]};tPutK('roadmaps',o).then(()=>{trm=o.id;render()})},
+  rmaddch(){const r=T('roadmaps').find(x=>x.id===trm),lines=document.getElementById('rm-ch').value.split('\n').map(x=>x.trim()).filter(Boolean).slice(0,60);if(!lines.length)return;
+    r.chapters=(r.chapters||[]).concat(lines.map(t=>({id:newId('c'),t:t.slice(0,80),plan:'',done:''})));saveRm(r)},
+  rmspread(){const r=T('roadmaps').find(x=>x.id===trm),from=mondayOf(val('rm-from')||today()),to=val('rm-to'),todo=(r.chapters||[]).filter(c=>!c.done);
+    if(!to||to<from||!todo.length){toast('Pick a finish date after the start.',true);return}const weeks=Math.max(1,Math.floor((new Date(to)-new Date(from))/6048e5)+1);
+    todo.forEach((c,i)=>{c.plan=addDays(from,7*Math.floor(i*weeks/todo.length))});saveRm(r)},
+  rmtest(){const r=T('roadmaps').find(x=>x.id===trm);r.tests=(r.tests||[]).concat({name:val('rm-tn'),d:val('rm-td')});saveRm(r)},
+  docup(){const f=document.getElementById('doc-f').files[0],s=T('students').find(x=>x.id===tsel);if(!f||!s)return;
+    if(f.size>5*1024*1024){toast('That file is over 5 MB. Try a smaller photo or PDF.',true);return}
+    if(!DOC_OK.test(f.type)){toast('Please upload a PDF, photo, Word, Excel or PowerPoint file.',true);return}
+    const rd=new FileReader();toast('Uploading…');rd.onload=()=>{const data=String(rd.result).split(',')[1];
+      call('tUpload',{pin:tpin,o:{sid:s.id,subject:val('doc-s'),name:f.name.slice(0,80),mime:f.type,data}}).then(d=>{tdata.docs=T('docs').concat(d);toast('Uploaded to Drive.');render()}).catch(tfail)};rd.readAsDataURL(f)}
+});
+document.addEventListener('click',e=>{const a=e.target.closest('a[data-rkey]');if(!a)return;const k=a.dataset.rkey,l=ls.get(k)||[];if(l.indexOf(a.dataset.rsent)<0){l.push(a.dataset.rsent);ls.set(k,l)}setTimeout(render,300)});
+document.addEventListener('change',e=>{const t=e.target,c=t.dataset.change;if(!c)return;
+  if(c==='tnsid'){tnote.sid=t.value;render()}if(c==='tntag'){tnote.tag=t.value;render()}
+  if(c==='rmdone'||c==='rmplan'){const r=T('roadmaps').find(x=>x.id===trm),ch=r.chapters[+t.dataset.i];if(c==='rmdone')ch.done=t.checked?today():'';else ch.plan=t.value?mondayOf(t.value):'';saveRm(r)}});
+
+/* ====== Parent guide (from the printed Parent Guide), English / Marathi / Hindi ====== */
+const GUIDE_P={
+en:{t:'Parent guide',sub:'How classes work, how we track progress, and how you can help at home.',
+ s:[['Our method',[['Concept','We walk through your child’s textbook and explain the core idea simply.'],['Practice','Oral and written practice in every class, not just reading along.'],['Mastery','We repeat until your child truly understands, then move on.']]],
+ ['Every term, run like a project',[['','Chetana brings her engineering and project-management experience into teaching, so nothing is left to the last week before exams.'],['Map','Your child’s syllabus and school test dates become one term roadmap.'],['Chunk','Big chapters are broken into small weekly goals.'],['Play','Each chunk is learned through games, stories and challenges.'],['Review','Weak spots are revised well before every test.']]],
+ ['Your child’s own book and exams',[['','We teach from the textbook your child’s school uses, whatever the school.'],['','We plan chapters and revision around the school’s test dates.'],['','State, CBSE and ICSE boards covered.']]],
+ ['Progress you can see',[['Starting check','In the first week, so we know where your child stands.'],['Weekly update','Attendance, what we covered, homework, and what is coming up, on WhatsApp.'],['Quick alert','If your child is stuck on a topic, with a 5-minute home tip.'],['Pre-exam note','A week before school tests.'],['Monthly progress report','On WhatsApp.']]],
+ ['Speaking, reading and writing',[['','A separate level-based programme for Marathi, Hindi and English, from letters and sounds up to confident writing and speaking. Ideal for children from non-Marathi families.']]],
+ ['How you can help at home',[['10 minutes a day','A short, regular slot works better than a long weekend session. The Kids’ Zone shows “Tonight’s 10 minutes”.'],['Ask “teach me”','Ask your child to explain one thing they learned today. Explaining is the best revision.'],['Check the homework, not the answers','Make sure it is done and neat; let mistakes come to class so we can fix them.'],['Tell us early','Message Chetana when school sets a test date or your child seems worried about a subject.']]],
+ ['Using the website',[['Learning library','Free chapters with practice that checks itself: English, Maths, Marathi and Hindi, grammar.'],['Kids’ World and Pune Ride','Game-style practice that children enjoy.'],['Child login','Your child types their first name and 4-digit PIN to save stars, so Chetana can see their practice.'],['Starting check','A free 10-minute check you can do at home anytime.']]],
+ ['The practical details',[['','Grades 1–10 · All subjects up to Grade 8, languages for Grades 9–10'],['','Small batches · In person at Sparklet, Megapolis or live online'],['','Simple monthly fees · No long-term lock-in']]]],
+ cta:'Book a free demo class',print:'Print or save as PDF'},
+mr:{t:'पालक मार्गदर्शिका',sub:'वर्ग कसे चालतात, प्रगती कशी पाहतो, आणि तुम्ही घरी कशी मदत करू शकता.',
+ s:[['आमची पद्धत',[['संकल्पना','मुलाच्या पाठ्यपुस्तकातून मुख्य संकल्पना सोप्या भाषेत समजावतो.'],['सराव','प्रत्येक वर्गात तोंडी आणि लेखी सराव, फक्त वाचन नाही.'],['पक्की तयारी','मुलाला खरंच समजेपर्यंत पुन्हा करतो, मगच पुढे जातो.']]],
+ ['प्रत्येक सत्र, प्रोजेक्टसारखं',[['','चेतना इंजिनिअरिंग आणि प्रोजेक्ट-व्यवस्थापनाचा अनुभव शिकवण्यात आणतात, त्यामुळे परीक्षेआधीच्या शेवटच्या आठवड्यासाठी काहीच उरत नाही.'],['नकाशा','अभ्यासक्रम आणि शाळेच्या परीक्षांच्या तारखांवरून सत्राचा एक आराखडा.'],['छोटे टप्पे','मोठे धडे छोट्या साप्ताहिक उद्दिष्टांमध्ये.'],['खेळ','प्रत्येक टप्पा खेळ, गोष्टी आणि आव्हानांतून.'],['उजळणी','प्रत्येक परीक्षेच्या खूप आधी अवघड भागांची उजळणी.']]],
+ ['मुलाचं स्वतःचं पुस्तक आणि परीक्षा',[['','शाळा कोणतीही असो, मुलाच्या शाळेच्या पाठ्यपुस्तकातूनच शिकवतो.'],['','शाळेच्या परीक्षांच्या तारखांनुसार धडे आणि उजळणीचं नियोजन.'],['','स्टेट, CBSE आणि ICSE बोर्ड.']]],
+ ['दिसणारी प्रगती',[['सुरुवातीची चाचणी','पहिल्या आठवड्यात, म्हणजे मूल कुठे आहे ते कळतं.'],['साप्ताहिक माहिती','उपस्थिती, काय शिकवलं, गृहपाठ आणि पुढे काय, WhatsApp वर.'],['लगेच सूचना','मूल एखाद्या विषयात अडकलं तर, घरी करण्याच्या ५ मिनिटांच्या टीपसह.'],['परीक्षेआधीची टीप','शाळेच्या परीक्षेच्या एक आठवडा आधी.'],['मासिक प्रगती अहवाल','WhatsApp वर.']]],
+ ['बोलणं, वाचन आणि लेखन',[['','मराठी, हिंदी आणि इंग्रजीसाठी स्तरानुसार वेगळा कार्यक्रम, अक्षरं आणि आवाजांपासून आत्मविश्वासाने लिहिण्या-बोलण्यापर्यंत. मराठी नसलेल्या कुटुंबांतील मुलांसाठी उत्तम.']]],
+ ['तुम्ही घरी कशी मदत करू शकता',[['रोज १० मिनिटं','आठवड्याच्या शेवटी मोठ्या वेळेपेक्षा रोजचा छोटा, नियमित वेळ जास्त उपयोगी. किड्स झोनमध्ये “आजची १० मिनिटं” दिसतात.'],['“मला शिकव” म्हणा','आज शिकलेली एक गोष्ट मुलाला तुम्हाला समजावून सांगायला सांगा. समजावणं हीच सर्वोत्तम उजळणी.'],['गृहपाठ तपासा, उत्तरं नाही','तो पूर्ण आणि नीट आहे ना एवढं पाहा; चुका वर्गात येऊ द्या, म्हणजे आम्ही त्या दुरुस्त करू.'],['लवकर कळवा','शाळेने परीक्षेची तारीख दिली किंवा मूल एखाद्या विषयाची काळजी करत असेल, तर चेतना यांना संदेश पाठवा.']]],
+ ['वेबसाइट कशी वापरायची',[['अभ्यास साहित्य','आपोआप तपासला जाणारा सराव असलेले मोफत धडे: इंग्रजी, गणित, मराठी आणि हिंदी, व्याकरण.'],['किड्स वर्ल्ड आणि पुणे राइड','मुलांना आवडणारा खेळासारखा सराव.'],['मुलाचं लॉगिन','तारे जतन करण्यासाठी मूल आपलं पहिलं नाव आणि ४ अंकी PIN टाइप करतं, त्यामुळे चेतना सराव पाहू शकतात.'],['सुरुवातीची चाचणी','घरी कधीही करता येणारी मोफत १० मिनिटांची चाचणी.']]],
+ ['व्यावहारिक माहिती',[['','इयत्ता १–१० · इयत्ता ८ पर्यंत सर्व विषय, इयत्ता ९–१० साठी भाषा'],['','लहान बॅच · स्पार्कलेट, मेगापोलिस येथे प्रत्यक्ष किंवा लाइव्ह ऑनलाइन'],['','साधी मासिक फी · दीर्घ मुदतीचं बंधन नाही']]]],
+ cta:'मोफत डेमो वर्ग बुक करा',print:'प्रिंट करा किंवा PDF म्हणून जतन करा'},
+hi:{t:'माता-पिता गाइड',sub:'क्लास कैसे चलती हैं, प्रगति कैसे देखते हैं, और आप घर पर कैसे मदद कर सकते हैं।',
+ s:[['हमारा तरीका',[['कॉन्सेप्ट','बच्चे की पाठ्यपुस्तक से मुख्य बात आसान तरीके से समझाते हैं।'],['अभ्यास','हर क्लास में मौखिक और लिखित अभ्यास, सिर्फ़ पढ़ना नहीं।'],['पक्की समझ','जब तक बच्चा सच में न समझे, दोहराते हैं, फिर आगे बढ़ते हैं।']]],
+ ['हर सत्र, प्रोजेक्ट की तरह',[['','चेतना इंजीनियरिंग और प्रोजेक्ट-मैनेजमेंट का अनुभव पढ़ाने में लाती हैं, ताकि परीक्षा से पहले के आख़िरी हफ़्ते के लिए कुछ न बचे।'],['नक्शा','सिलेबस और स्कूल टेस्ट की तारीखों से पूरे सत्र का एक रोडमैप।'],['छोटे हिस्से','बड़े पाठ छोटे साप्ताहिक लक्ष्यों में।'],['खेल','हर हिस्सा खेल, कहानियों और चुनौतियों से।'],['दोहराई','हर टेस्ट से काफ़ी पहले कमज़ोर हिस्सों की दोहराई।']]],
+ ['बच्चे की अपनी किताब और परीक्षा',[['','स्कूल कोई भी हो, बच्चे के स्कूल की पाठ्यपुस्तक से ही पढ़ाते हैं।'],['','स्कूल की टेस्ट तारीखों के हिसाब से पाठ और दोहराई की योजना।'],['','स्टेट, CBSE और ICSE बोर्ड।']]],
+ ['दिखने वाली प्रगति',[['शुरुआती जाँच','पहले हफ़्ते में, ताकि पता चले बच्चा कहाँ है।'],['साप्ताहिक जानकारी','हाज़िरी, क्या पढ़ाया, होमवर्क और आगे क्या है, WhatsApp पर।'],['तुरंत सूचना','अगर बच्चा किसी विषय में अटके, घर के लिए 5 मिनट की टिप के साथ।'],['परीक्षा से पहले नोट','स्कूल टेस्ट से एक हफ़्ता पहले।'],['मासिक प्रगति रिपोर्ट','WhatsApp पर।']]],
+ ['बोलना, पढ़ना और लिखना',[['','मराठी, हिंदी और अंग्रेज़ी के लिए स्तर के हिसाब से अलग कार्यक्रम, अक्षरों और आवाज़ों से लेकर आत्मविश्वास से लिखने-बोलने तक। गैर-मराठी परिवारों के बच्चों के लिए बढ़िया।']]],
+ ['आप घर पर कैसे मदद कर सकते हैं',[['रोज़ 10 मिनट','हफ़्ते के आख़िर के लंबे समय से रोज़ का छोटा, नियमित समय ज़्यादा काम का है। किड्स ज़ोन में “आज के 10 मिनट” दिखते हैं।'],['“मुझे सिखाओ” कहें','बच्चे से आज सीखी एक बात आपको समझाने को कहें। समझाना ही सबसे अच्छी दोहराई है।'],['होमवर्क जाँचें, जवाब नहीं','बस देखें कि वह पूरा और साफ़ है; गलतियाँ क्लास में आने दें, ताकि हम उन्हें सुधार सकें।'],['जल्दी बताएँ','जब स्कूल टेस्ट की तारीख दे या बच्चा किसी विषय से परेशान लगे, तो चेतना को संदेश भेजें।']]],
+ ['वेबसाइट कैसे इस्तेमाल करें',[['पढ़ाई सामग्री','अपने-आप जँचने वाले अभ्यास के साथ मुफ़्त पाठ: अंग्रेज़ी, गणित, मराठी और हिंदी, व्याकरण।'],['किड्स वर्ल्ड और पुणे राइड','खेल जैसा अभ्यास जो बच्चों को पसंद आता है।'],['बच्चे का लॉगिन','सितारे सहेजने के लिए बच्चा अपना पहला नाम और 4 अंकों का PIN टाइप करता है, ताकि चेतना अभ्यास देख सकें।'],['शुरुआती जाँच','घर पर कभी भी की जा सकने वाली मुफ़्त 10 मिनट की जाँच।']]],
+ ['ज़रूरी जानकारी',[['','कक्षा 1–10 · कक्षा 8 तक सभी विषय, कक्षा 9–10 के लिए भाषाएँ'],['','छोटे बैच · स्पार्कलेट, मेगापोलिस में आमने-सामने या लाइव ऑनलाइन'],['','आसान मासिक फ़ीस · लंबी अवधि का कोई बंधन नहीं']]]],
+ cta:'मुफ़्त डेमो क्लास बुक करें',print:'प्रिंट करें या PDF के रूप में सहेजें'}};
+function parentGuide(){const g=GUIDE_P[LANG]||GUIDE_P.en;
+  return `<section class="stack guide-head"><h1>${g.t}</h1><p class="muted lead">${g.sub}</p><div class="row noprint"><button class="btn" data-act="tprint">${g.print}</button></div></section>
+  <div class="guide-grid">${g.s.map(([h,items],i)=>`<section class="card stack guide-sec"><h2><span class="gnum">${i+1}</span>${h}</h2>${items.map(([b,t])=>b?`<p><b>${b}.</b> ${t}</p>`:`<p>${t}</p>`).join('')}</section>`).join('')}</div>
+  <section class="contact"><div><h2>${g.cta}</h2><p>Sparklet, Megapolis, Hinjawadi, Pune · ${LANG==='mr'?'ऑनलाइनही':LANG==='hi'?'ऑनलाइन भी':'online too'}</p></div><div class="row noprint"><a class="btn go" href="#book">${g.cta}</a><a class="btn" href="${WA}">WhatsApp</a></div></section>`}
+
+/* ====== Concept card builder (images for WhatsApp / Instagram), teacher console ====== */
+const CB_SIZES={square:[1080,1080,'Square post'],story:[1080,1920,'Status / Story'],wide:[1200,630,'Wide']};
+const CB_LAYOUTS={cards:'Trick cards',steps:'Numbered steps',compare:'Wrong vs right',quiz:'Quiz question'};
+const CB_TEMPLATES=[
+ {name:'Open roof (Marathi & Hindi)',layout:'cards',kicker:'Concept of the week · Marathi & Hindi',hook:'Why does your child keep mixing up these letters?',title:'The “open roof” trick',
+  intro:'Some letters look like twins. The difference is the roof, the line on top. One twin has a full roof; the other has a gap in it.',
+  items:'घ / ध | gha vs dha | घ has a full roof. ध has a gap on the left.\nम / भ | ma vs bha | म has a full roof. भ has a gap on the left.\nख / रव | kha vs ra + va | ख holds hands: its two parts are joined.',
+  tryit:'Write the six letters on paper and ask, “Which ones have an open roof?”'},
+ {name:'-ed has three sounds (English)',layout:'cards',kicker:'Concept of the week · English',hook:'Did you know “-ed” is not always said the same way?',title:'One spelling, three sounds',
+  intro:'The ending changes sound depending on the letter before it. A simple throat test tells you which.',
+  items:'/t/ | walked · jumped · washed | After a soft, whispery sound, -ed sounds like t.\n/d/ | played · called · opened | After a buzzing sound or a vowel, -ed sounds like d.\n/id/ | wanted · needed · painted | Only after t or d does -ed add an extra beat.',
+  tryit:'Say “jumped”, “played” and “wanted” with a hand on your throat. Which ones buzz?'},
+ {name:'Only 6 hard table facts (Maths)',layout:'steps',kicker:'Concept of the week · Maths',hook:'Tables feel like 100 facts to memorise. They are not.',title:'Only 6 hard facts',
+  intro:'Learn the tables in this smart order. Since 3 × 7 = 7 × 3, every fact counts twice.',
+  items:'×1 ×10 | Free | Same number, or add a zero.\n×2 | Doubles | 2 × 7 = 7 + 7.\n×5 | Half of ×10 | 5 × 8 = half of 80.\n×9 | ×10 minus one | 9 × 7 = 70 − 7.\n×4 | Double, double | 4 × 6: 12, then 24.\n×3 | Double + one more | 3 × 8 = 16 + 8.',
+  tryit:'Left to learn: 6×6, 6×7, 6×8, 7×7, 7×8, 8×8. One a day at dinner.'},
+ {name:'Earn and owe (integers)',layout:'cards',kicker:'Concept of the week · Maths',hook:'Positive and negative numbers confusing your child?',title:'Think money, not minus signs',
+  intro:'Plus means money you earn. Minus means money you owe. Ask: “How much do I have now?”',
+  items:'5 + (−3) = 2 | Earn 5, owe 3 | Pay off the debt; 2 is left.\n−4 + 6 = 2 | Owe 4, earn 6 | Clear what you owe; 2 is yours.\n−2 + (−3) = −5 | Owe 2, borrow 3 | Debt plus debt is a bigger debt.',
+  tryit:'Give pretend notes for “earn” and paper slips for “owe”. Call out sums and settle the account.'},
+ {name:'The percent flip (Maths)',layout:'compare',kicker:'Concept of the week · Maths',hook:'The percentage shortcut most adults never learned',title:'The percent flip',
+  intro:'x% of y is always equal to y% of x. When one way looks hard, flip it.',
+  items:'8% of 50 | 50% of 8 = 4\n4% of 75 | 75% of 4 = 3\n16% of 25 | 25% of 16 = 4',
+  tryit:'Ask “What is 12% of 50?” Then flip it: 50% of 12 = 6.'}];
+let cb=null;
+const cbBlank=()=>({id:'',name:'',layout:'cards',size:'square',kicker:'Concept of the week',hook:'',title:'',intro:'',items:'',tryit:'',emoji:''});
+function cbSaved(){return ls.get('ct_cards')||[]}
+function cardsView(){if(!cb)cb=Object.assign(cbBlank(),CB_TEMPLATES[0],{id:''});
+  const saved=cbSaved(),ph=cb.layout==='compare'?'Hard way | Easy way (one pair per line)':cb.layout==='quiz'?'Option A\nOption B\nOption C (first line = the right answer; it is shuffled)':'Big text | short label | one-line explanation (one per line)';
+  setTimeout(cbDraw,0);
+  return `<section class="card stack"><h2>Concept card builder</h2><p class="muted small">Make an image post in Chetana’s style. Type in English, मराठी or हिंदी. Read it once before posting: what you type is what parents see.</p>
+  <div class="row"><label class="grow">Start from<select data-change="cbtpl"><option value="">Choose a template…</option>${CB_TEMPLATES.map((t,i)=>`<option value="t${i}">${esc(t.name)}</option>`).join('')}${saved.map(c=>`<option value="${c.id}">Saved: ${esc(c.name||c.title)}</option>`).join('')}</select></label>
+   <button class="btn" data-act="cbnew">Blank card</button></div></section>
+  <div class="cb-wrap"><section class="card stack cb-form" data-cbform>
+   <div class="row"><label>Layout<select data-cb="layout">${Object.entries(CB_LAYOUTS).map(([k,v])=>`<option value="${k}" ${cb.layout===k?'selected':''}>${v}</option>`).join('')}</select></label>
+    <label>Size<select data-cb="size">${Object.entries(CB_SIZES).map(([k,v])=>`<option value="${k}" ${cb.size===k?'selected':''}>${v[2]}</option>`).join('')}</select></label></div>
+   <label>Small heading<input data-cb="kicker" maxlength="50" value="${esc(cb.kicker)}"></label>
+   <label>Hook question<input data-cb="hook" maxlength="90" value="${esc(cb.hook)}"></label>
+   <label>Big title<input data-cb="title" maxlength="50" value="${esc(cb.title)}"></label>
+   <label>${cb.layout==='quiz'?'The question':'Short explanation'}<textarea data-cb="intro" rows="2" maxlength="220">${esc(cb.intro)}</textarea></label>
+   <label>${cb.layout==='quiz'?'Answer options':'Items'}<textarea data-cb="items" rows="5" maxlength="700" placeholder="${esc(ph)}">${esc(cb.items)}</textarea></label>
+   <label>${cb.layout==='quiz'?'Explanation after the answer':'Try tonight'}<input data-cb="tryit" maxlength="140" value="${esc(cb.tryit)}"></label>
+   <label>Big emoji (optional)<input data-cb="emoji" maxlength="4" value="${esc(cb.emoji)}" style="width:6em"></label>
+   <div class="row"><label class="grow">Save as<input data-cb="name" maxlength="40" value="${esc(cb.name)}" placeholder="e.g. Week 5 fractions"></label><button class="btn navy" data-act="cbsave">Save</button>${cb.id?`<button class="btn ghost" data-act="cbdel">${armed==='cb'?'Tap again':'Delete'}</button>`:''}</div></section>
+  <section class="card stack cb-prev"><canvas id="cbc" class="cbc" role="img" aria-label="Preview of the concept card"></canvas>
+   <div class="row"><button class="btn go" data-act="cbdown">Download image</button>${navigator.share?'<button class="btn" data-act="cbshare">Share</button>':''}</div>
+   ${cb.layout==='quiz'?'<p class="small muted">Quiz cards come in two images: the question, and the answer to post later.</p><div class="row"><button class="btn" data-act="cbdown" data-ans="1">Download answer image</button></div>':''}</section></div>`}
+let cbFontsReady=null;
+function cbFonts(){return cbFontsReady=cbFontsReady||Promise.all(['700 60px Kalam','800 40px "Nunito Sans"','600 30px "Nunito Sans"','700 40px "Noto Sans Devanagari"'].map(f=>document.fonts.load(f).catch(()=>{}))).catch(()=>{})}
+let cbLogo=null;
+function cbDraw(answer){const cv=document.getElementById('cbc');if(!cv||!cb)return Promise.resolve(null);
+  return cbFonts().then(()=>new Promise(res=>{if(cbLogo&&cbLogo.complete)return res();cbLogo=new Image();cbLogo.onload=cbLogo.onerror=()=>res();cbLogo.src='img/logo.jpg'})).then(()=>{
+  const [W,H]=CB_SIZES[cb.size]||CB_SIZES.square;cv.width=W;cv.height=H;const x=cv.getContext('2d');
+  const F=(w,px,fam)=>`${w} ${px}px ${fam==='hand'?'Kalam':'"Nunito Sans"'}, "Noto Sans Devanagari", sans-serif`;
+  const wrap=(t,maxW,font)=>{x.font=font;const words=String(t||'').split(/\s+/),lines=[];let cur='';words.forEach(w=>{const tryL=cur?cur+' '+w:w;if(x.measureText(tryL).width>maxW&&cur){lines.push(cur);cur=w}else cur=tryL});if(cur)lines.push(cur);return lines};
+  const items=String(cb.items||'').split('\n').map(l=>l.split('|').map(s=>s.trim())).filter(r=>r[0]);
+  function layout(k,draw){let y=0;const pad=Math.round(W*.07),inner=W-pad*2,lh=s=>Math.round(s*1.28);
+    const text=(t,size,w,fam,color,align,maxW)=>{const f=F(w,Math.round(size*k),fam),ls=wrap(t,maxW||inner,f);ls.forEach(l=>{if(draw){x.font=f;x.fillStyle=color;x.textAlign=align||'left';x.fillText(l,align==='center'?W/2:pad,y+Math.round(size*k))}y+=lh(size*k)});return ls.length};
+    y=pad*0.9;
+    if(cb.kicker)text(String(cb.kicker).toUpperCase(),26,800,'body','#FFD27A');y+=8*k;
+    if(cb.hook)text(cb.hook,34,700,'body','#EEE8DA');y+=10*k;
+    const titleTop=y;if(cb.title)text(cb.title,76,700,'hand','#ffffff');
+    if(draw&&cb.title){x.strokeStyle='#F4A300';x.lineWidth=Math.max(4,7*k);x.lineCap='round';x.beginPath();x.moveTo(pad,y+4);x.bezierCurveTo(pad+inner*.3,y-6,pad+inner*.6,y+12,pad+Math.min(inner,x.measureText?inner*.85:inner),y)  ;x.stroke()}
+    y+=22*k;if(cb.intro)text(cb.layout==='quiz'?cb.intro:cb.intro,32,600,'body','#F3EEE3');y+=18*k;
+    if(cb.layout==='quiz'){const opts=items.map(r=>r[0]);const order=opts.map((o,i)=>i).sort((a,b)=>((a*7+3)%opts.length)-((b*7+3)%opts.length));
+      order.forEach((i,n)=>{const lab=String.fromCharCode(65+n)+')  '+opts[i],hgt=lh(34*k)+24*k,good=answer&&i===0;if(draw){x.fillStyle=good?'#2E7D4F':'rgba(255,255,255,.1)';rr(pad,y,inner,hgt,18*k);x.fill()}
+        const y0=y;y+=12*k;text(lab+(good?'  ✓':''),34,700,'body','#ffffff');y=y0+hgt+14*k});
+      if(answer&&cb.tryit){y+=6*k;text(cb.tryit,30,600,'body','#FFD27A')}}
+    else if(cb.layout==='compare'){const colW=(inner-24*k)/2;if(draw){x.font=F(800,Math.round(26*k),'body');x.fillStyle='#FFB4A6';x.textAlign='left';x.fillText('✗ THE HARD WAY',pad,y+26*k);x.fillStyle='#A8E6B8';x.fillText('✓ THE EASY WAY',pad+colW+24*k,y+26*k)}y+=44*k;
+      items.forEach(r=>{const hgt=Math.max(wrap(r[0],colW-32*k,F(700,Math.round(36*k),'body')).length,wrap(r[1]||'',colW-32*k,F(700,Math.round(36*k),'body')).length)*lh(36*k)+28*k;
+        if(draw){x.fillStyle='rgba(226,88,62,.22)';rr(pad,y,colW,hgt,18*k);x.fill();x.fillStyle='rgba(46,125,79,.35)';rr(pad+colW+24*k,y,colW,hgt,18*k);x.fill();
+          [[r[0],pad],[r[1]||'',pad+colW+24*k]].forEach(([t,cx])=>{const f=F(700,Math.round(36*k),'body');wrap(t,colW-32*k,f).forEach((l,i)=>{x.font=f;x.fillStyle='#fff';x.textAlign='left';x.fillText(l,cx+16*k,y+14*k+lh(36*k)*(i+1)-8*k)})})}
+        y+=hgt+14*k})}
+    else{const cols=cb.layout==='steps'?(items.length>3?2:1):1,gap=16*k,cw=(inner-gap*(cols-1))/cols;let rowY=y,col=0,rowH=0;
+      items.forEach((r,i)=>{const big=(cb.layout==='steps'?(i+1)+'. ':'')+r[0],bigF=F(800,Math.round((cb.layout==='steps'?38:46)*k),'body'),bodyF=F(600,Math.round(27*k),'body'),labF=F(800,Math.round(26*k),'body');
+        const bl=wrap(big,cw-36*k,bigF),ll=r[1]?wrap(r[1],cw-36*k,labF):[],tl=r[2]?wrap(r[2],cw-36*k,bodyF):[],hgt=bl.length*lh((cb.layout==='steps'?38:46)*k)+ll.length*lh(26*k)+tl.length*lh(27*k)+30*k;
+        const cx=pad+col*(cw+gap);if(draw){x.fillStyle='rgba(255,255,255,.09)';rr(cx,rowY,cw,hgt,20*k);x.fill();x.fillStyle='#F4A300';rr(cx,rowY,8*k,hgt,4*k);x.fill();
+          let ty=rowY+12*k;const put=(ls,f,c,sz)=>ls.forEach(l=>{x.font=f;x.fillStyle=c;x.textAlign='left';ty+=lh(sz*k);x.fillText(l,cx+22*k,ty-8*k)});
+          put(bl,bigF,'#ffffff',cb.layout==='steps'?38:46);put(ll,labF,'#FFD27A',26);put(tl,bodyF,'#EEE8DA',27)}
+        rowH=Math.max(rowH,hgt);col++;if(col>=cols){col=0;rowY+=rowH+gap;rowH=0}});if(col)rowY+=rowH+gap;y=rowY}
+    if(cb.layout!=='quiz'&&cb.tryit){y+=6*k;const f=F(700,Math.round(28*k),'body'),ls=wrap('Try tonight: '+cb.tryit,inner-40*k,f),hgt=ls.length*lh(28*k)+28*k;
+      if(draw){x.fillStyle='#F4A300';rr(pad,y,inner,hgt,18*k);x.fill();ls.forEach((l,i)=>{x.font=f;x.fillStyle='#22302A';x.textAlign='left';x.fillText(l,pad+20*k,y+14*k+lh(28*k)*(i+1)-8*k)})}y+=hgt}
+    return y}
+  function rr(a,b,w,h,r){x.beginPath();x.moveTo(a+r,b);x.arcTo(a+w,b,a+w,b+h,r);x.arcTo(a+w,b+h,a,b+h,r);x.arcTo(a,b+h,a,b,r);x.arcTo(a,b,a+w,b,r);x.closePath()}
+  const footH=Math.round(Math.min(W,H)*.12),room=H-footH-30;let lo=.3,hi=Math.min(1.7,W/1080*1.7);for(let i=0;i<14;i++){const m=(lo+hi)/2;if(layout(m,false)<=room)lo=m;else hi=m}const k=lo;
+  x.fillStyle='#1F3B2D';x.fillRect(0,0,W,H);for(let i=-H;i<W;i+=9){x.strokeStyle='rgba(255,255,255,.018)';x.lineWidth=2;x.beginPath();x.moveTo(i,0);x.lineTo(i+H*.47,H);x.stroke()}
+  const g=x.createRadialGradient(W*.2,H*.1,10,W*.2,H*.1,W*.8);g.addColorStop(0,'rgba(255,255,255,.07)');g.addColorStop(1,'rgba(255,255,255,0)');x.fillStyle=g;x.fillRect(0,0,W,H);
+  x.strokeStyle='#8B5E34';x.lineWidth=Math.round(W*.022);x.strokeRect(x.lineWidth/2,x.lineWidth/2,W-x.lineWidth,H-x.lineWidth);
+  if(cb.emoji){x.font=`${Math.round(W*.13)}px sans-serif`;x.textAlign='right';x.globalAlpha=.9;x.fillText(cb.emoji,W-W*.06,W*.17);x.globalAlpha=1}
+  layout(k,true);
+  const fy=H-footH-Math.round(W*.02);x.fillStyle='rgba(0,0,0,.25)';x.fillRect(W*.022,fy,W-W*.044,footH);
+  const ls=footH*.7;if(cbLogo&&cbLogo.naturalWidth){x.save();x.beginPath();x.arc(W*.07+ls/2,fy+footH/2,ls/2,0,Math.PI*2);x.clip();x.drawImage(cbLogo,W*.07,fy+footH/2-ls/2,ls,ls);x.restore()}
+  x.textAlign='left';x.fillStyle='#fff';x.font=F(700,Math.round(footH*.3),'hand');x.fillText("Chetana's Tutoring",W*.07+ls+18,fy+footH*.45);
+  x.font=F(600,Math.round(footH*.2),'body');x.fillStyle='#FFD27A';x.fillText('Grades 1–10 · Hinjawadi & online · palatshahachetana.github.io',W*.07+ls+18,fy+footH*.78);
+  return cv})}
+function cbBlob(ans){return cbDraw(ans).then(cv=>new Promise(res=>cv?cv.toBlob(res,'image/png'):res(null)))}
+function cbFile(ans){return cbBlob(ans).then(b=>b&&new File([b],(cb.name||cb.title||'concept-card').replace(/[^\wऀ-ॿ -]/g,'').slice(0,40).trim().replace(/\s+/g,'-')+(ans?'-answer':'')+'.png',{type:'image/png'}))}
+Object.assign(acts,{
+  cbnew(){cb=cbBlank();render()},
+  cbsave(){const l=cbSaved();if(!cb.id)cb.id=newId('cb');cb.name=cb.name||cb.title||'Card';const i=l.findIndex(c=>c.id===cb.id);if(i<0)l.unshift(Object.assign({},cb));else l[i]=Object.assign({},cb);ls.set('ct_cards',l.slice(0,60));toast('Saved on this device.');render()},
+  cbdel(){if(armed!=='cb'){armed='cb';render();return}ls.set('ct_cards',cbSaved().filter(c=>c.id!==cb.id));cb=cbBlank();armed=null;render()},
+  cbdown(d){cbFile(!!d.ans).then(f=>{if(!f)return;const a=document.createElement('a');a.href=URL.createObjectURL(f);a.download=f.name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000);if(d.ans)cbDraw(false)})},
+  cbshare(){cbFile(false).then(f=>{if(!f)return;const data={files:[f],title:cb.title};if(navigator.canShare&&!navigator.canShare(data)){toast('This phone cannot share images from the browser. Use Download instead.',true);return}navigator.share(data).catch(()=>{})})}
+});
+let cbT=null;
+document.addEventListener('input',e=>{const k=e.target.dataset&&e.target.dataset.cb;if(!k||!cb)return;cb[k]=e.target.value;clearTimeout(cbT);cbT=setTimeout(()=>cbDraw(false),150)});
+document.addEventListener('change',e=>{const t=e.target;if(t.dataset.cb==='layout'||t.dataset.cb==='size'){cb[t.dataset.cb]=t.value;render()}
+  if(t.dataset.change==='cbtpl'&&t.value){if(t.value[0]==='t'&&CB_TEMPLATES[+t.value.slice(1)])cb=Object.assign(cbBlank(),CB_TEMPLATES[+t.value.slice(1)],{id:'',name:''});else{const c=cbSaved().find(x=>x.id===t.value);if(c)cb=Object.assign(cbBlank(),c)}render()}});
+
+/* ====== Homework tracker, school marks, assigned practice, worksheet builder ====== */
+const HWS=[['','–','Not checked'],['done','✓','Done'],['late','⏱','Late'],['missing','✗','Missing']];
+function prevHwClass(batch,date){return T('classes').filter(c=>c.batch===batch&&c.date<date&&c.homework).sort((a,b)=>b.date.localeCompare(a.date))[0]}
+function hwCheckBlock(b){const p=prevHwClass(b.id,tdate);if(!p)return '';const ss=inBatch(b).filter(s=>(p.present||[]).indexOf(s.id)>=0||(p.absent||[]).indexOf(s.id)>=0),hw=p.hw||{};
+  return `<fieldset class="fld"><legend>Homework check: “${esc(p.homework)}” (set ${prettyShort(p.date)})</legend><div class="tc-att">${ss.map(s=>{const v=hw[s.id]||'',m=HWS.find(x=>x[0]===v);
+    return `<button type="button" class="hwchip hw-${v||'none'}" data-act="hwcycle" data-c="${p.id}" data-s="${s.id}" aria-label="${esc(s.name)}: ${m[2]}">${m[1]} ${esc(s.name)}</button>`}).join('')}</div><p class="small muted">Tap a name to switch: done, late, missing.</p></fieldset>`}
+function hwStats(sid,from,to){let d=0,l=0,m=0;T('classes').forEach(c=>{if(!c.hw||!c.hw[sid]||c.date<from||c.date>to)return;const v=c.hw[sid];if(v==='done')d++;else if(v==='late')l++;else if(v==='missing')m++});return{d,l,m,t:d+l+m}}
+function hwMissingAll(){const out=[],from=addDays(today(),-14);T('classes').forEach(c=>{if(c.date<from||!c.hw)return;Object.entries(c.hw).forEach(([sid,v])=>{if(v==='missing'){const s=T('students').find(x=>x.id===sid);if(s)out.push(`${esc(s.name)}: “${esc(c.homework)}” (${prettyShort(c.date)})`)}})});return out}
+/* marks */
+function marksFor(sid){return T('marks').filter(m=>m.sid===sid).sort((a,b)=>a.date.localeCompare(b.date))}
+const pct=m=>m.outOf?Math.round(m.score/m.outOf*100):0;
+function spark(ms){if(ms.length<2)return '';const w=160,h=40,pts=ms.map((m,i)=>[i*(w/(ms.length-1)),h-4-pct(m)/100*(h-8)]);
+  return `<svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" class="spark" role="img" aria-label="Trend: ${ms.map(pct).join(', ')} percent"><polyline points="${pts.map(p=>p.join(',')).join(' ')}" fill="none" stroke="#1E6B3A" stroke-width="3" stroke-linejoin="round"/>${pts.map(p=>`<circle cx="${p[0]}" cy="${p[1]}" r="3.5" fill="#F4A300"/>`).join('')}</svg>`}
+function marksSection(s){const ms=marksFor(s.id),subs=uniq(ms.map(m=>m.subject));
+  return `<section class="card stack"><h3>School test marks</h3>
+  ${subs.map(sub=>{const l=ms.filter(m=>m.subject===sub),last=l[l.length-1],prev=l[l.length-2],diff=prev?pct(last)-pct(prev):0;
+    return `<div class="markrow"><div class="grow"><b>${esc(sub)}</b> <span class="small muted">latest ${esc(last.test)}: ${last.score}/${last.outOf} (${pct(last)}%)</span>${prev?` <span class="pill ${diff>=0?'ok':'bad'}">${diff>=0?'▲':'▼'} ${Math.abs(diff)}%</span>`:''}</div>${spark(l)}</div>
+    <div class="small muted">${l.map(m=>`${esc(m.test)} ${pct(m)}%`).join(' · ')}</div>`}).join('')||'<p class="muted small">No marks yet.</p>'}
+  <form class="row" data-form="addmark"><label>Subject<input id="mk-sub" list="mk-subs" required maxlength="30"><datalist id="mk-subs">${uniq(T('marks').map(m=>m.subject).concat(['Maths','Science','English','Marathi','Hindi'])).map(x=>`<option value="${esc(x)}">`).join('')}</datalist></label>
+   <label>Test<input id="mk-test" required maxlength="30" placeholder="Unit test 1"></label><label>Marks<input id="mk-score" inputmode="decimal" required style="width:5em"></label><label>Out of<input id="mk-out" inputmode="decimal" required value="25" style="width:5em"></label>
+   <label>Date<input id="mk-date" type="date" value="${today()}"></label><button class="btn navy">Add</button></form></section>`}
+function marksLine(s,from){const ms=marksFor(s.id).filter(m=>!from||m.date>=from);return ms.length?'Test marks: '+ms.map(m=>`${m.subject} ${m.test} ${m.score}/${m.outOf}`).join('; '):''}
+/* assigned practice */
+function asgFor(s){return T('assign').filter(a=>a.target==='s:'+s.id||a.target==='b:'+s.batch)}
+function asgDone(a,prog){const M=MODS[a.mod];if(!M)return false;const k=M.key+a.ch+(a.set!=null&&a.set!==''?'_'+a.set:'');
+  if(a.set!==''&&a.set!=null)return((prog||{})[k]||{}).b>=7;const c=(M.ch||[]).find(c=>c.n==a.ch);return c?chState(prog||{},a.mod,c).done:false}
+function asgLabel(a){const M=MODS[a.mod],c=M&&M.ch&&M.ch.find(c=>c.n==a.ch);return `${M?M.name:a.mod}: ${c?c.title:'Chapter '+a.ch}${a.set!==''&&a.set!=null&&c&&c.sets?' – '+c.sets[a.set].name:''}`}
+function assignSection(){const bs=T('batches'),ss=active();const mods=Object.keys(MODS);const m=asgDraft.mod,M=MODS[m];
+  const list=T('assign').slice().sort((a,b)=>(b.due||'').localeCompare(a.due||''));
+  return `<section class="card stack"><h2>Assign practice</h2><p class="muted small">It shows on the child’s Kids’ Zone page. You see who has finished it.</p>
+  <form class="stack" data-form="addasg"><div class="row"><label>For<select id="as-to">${bs.map(b=>`<option value="b:${b.id}">Batch: ${esc(b.name)}</option>`).join('')}${ss.map(s=>`<option value="s:${s.id}">${esc(s.name)}</option>`).join('')}</select></label>
+   <label>Subject<select data-change="asgmod">${mods.map(k=>`<option value="${k}" ${k===m?'selected':''}>${esc(MODS[k].name)}</option>`).join('')}</select></label></div>
+   <div class="row"><label class="grow">Chapter<select id="as-ch" data-change="asgch">${(M.ch||[]).map(c=>`<option value="${c.n}" ${c.n==asgDraft.ch?'selected':''}>${c.n}. ${esc(c.title)}</option>`).join('')}</select></label>
+   ${(()=>{const c=(M.ch||[]).find(c=>c.n==asgDraft.ch)||(M.ch||[])[0];return c&&c.sets?`<label>Set<select id="as-set"><option value="">Whole chapter</option>${c.sets.map((s2,i)=>`<option value="${i}">${esc(s2.name)}</option>`).join('')}</select></label>`:'<input type="hidden" id="as-set" value="">'})()}
+   <label>Due<input id="as-due" type="date" value="${addDays(today(),3)}"></label></div>
+   <div class="row"><button class="btn go">Assign</button></div></form>
+  ${list.map(a=>{const kids=a.target[0]==='b'?active().filter(s=>s.batch===a.target.slice(2)):active().filter(s=>'s:'+s.id===a.target),done=kids.filter(s=>asgDone(a,s.progress));
+    return `<div class="item"><div class="grow"><b>${esc(asgLabel(a))}</b><div class="small muted">Due ${a.due?prettyShort(a.due):'–'} · ${done.length} of ${kids.length} done${kids.length&&done.length<kids.length?' · waiting: '+kids.filter(s=>done.indexOf(s)<0).map(s=>esc(s.name)).join(', '):''}</div></div>
+    <button class="btn ghost" data-act="asgdel" data-id="${a.id}">${armed==='a'+a.id?'Tap again':'Remove'}</button></div>`}).join('')}</section>`}
+let asgDraft={mod:'maths',ch:1};
+function kidAssigned(){const l=(kid&&kid.assign)||[];if(!l.length)return '';const t=today();
+  return `<section class="card stack"><h2>📌 From Chetana ma’am</h2>${l.map(a=>{const ok=asgDone(a,kid.progress);return `<a class="tn${ok?' done':''}" href="#${a.mod}" data-act="asggo" data-m="${a.mod}" data-n="${a.ch}"><span aria-hidden="true">${ok?'✅':a.due&&a.due<t?'⏰':'📘'}</span><span class="grow"><b>${esc(asgLabel(a))}</b><small>${ok?'Done!':a.due?'By '+prettyShort(a.due):''}</small></span></a>`}).join('')}</section>`}
+/* worksheet builder */
+let ws={mod:'maths',chs:[],n:10,title:'',name:true,seed:0,qs:null};
+function wsBuild(){const M=MODS[ws.mod];if(!M.ch)return[];const chs=M.ch.filter(c=>ws.chs.indexOf(String(c.n))>=0);if(!chs.length)return[];const out=[];let g=0;
+  while(out.length<ws.n&&g++<400){const c=chs[out.length%chs.length],qs=c.sets?one(c.sets).make():c.make(),q=one(qs);if(!out.some(x=>x.ask===q.ask&&x.show===q.show&&x.a===q.a))out.push(q)}return out}
+function wsQ(q,i,key){const a=key?(q.ah||esc(q.a)):'';
+  if(key)return `<li><span class="wsk">${q.kind==='build'?esc(q.target.join(' ')):q.kind==='pick'?esc(String.fromCharCode(65+q.opts.findIndex(o=>o.v===q.a)))+') ':''}${q.kind==='build'?'':a}</span></li>`;
+  return `<li class="wsq">${q.show?`<div class="wss">${q.show}</div>`:''}<div class="wsa">${esc(q.ask)}</div>
+   ${q.kind==='pick'?`<div class="wso">${q.opts.map((o,j)=>`<span>${String.fromCharCode(65+j)}) ${o.h}</span>`).join('')}</div>`:q.kind==='build'?`<div class="wso">Letters: ${q.tiles.map(esc).join('  ')}</div><div class="wsl"></div>`:'<div class="wsl"></div>'}</li>`}
+function worksheetsView(){const M=MODS[ws.mod];
+  return `<section class="card stack noprint"><h2>Worksheet builder</h2><p class="muted small">Make a printable worksheet or class test from the site’s question banks. Every one is different; the answer key prints on its own page.</p>
+  <div class="row"><label>Subject<select data-change="wsmod">${Object.keys(MODS).map(k=>`<option value="${k}" ${k===ws.mod?'selected':''}>${esc(MODS[k].name)}</option>`).join('')}</select></label>
+   <label>Questions<select data-change="wsn">${[10,15,20,30].map(n=>`<option ${n===ws.n?'selected':''}>${n}</option>`).join('')}</select></label>
+   <label class="grow">Title<input data-change="wstitle" value="${esc(ws.title)}" placeholder="${esc(M.name)} worksheet"></label></div>
+  <fieldset class="fld"><legend>Chapters</legend><div class="row">${(M.ch||[]).map(c=>`<label class="ckband"><input type="checkbox" data-change="wsch" value="${c.n}" ${ws.chs.indexOf(String(c.n))>=0?'checked':''}> ${c.n}. ${esc(c.title)}</label>`).join('')}</div></fieldset>
+  <div class="row"><button class="btn go" data-act="wsmake">Make worksheet</button>${ws.qs?'<button class="btn" data-act="tprint">Print or save as PDF</button><button class="btn" data-act="wsmake">New questions</button>':''}</div></section>
+  ${ws.qs?`<div class="ws-print"><section class="ws-page"><div class="ws-head"><img src="img/logo.jpg" alt="" width="44" height="44"><div><b>${esc(ws.title||M.name+' worksheet')}</b><span>Chetana’s Tutoring</span></div><div class="ws-name">Name: ____________ &nbsp; Date: ________ &nbsp; Score: ___ / ${ws.qs.length}</div></div>
+   <ol class="ws-list">${ws.qs.map((q,i)=>wsQ(q,i,false)).join('')}</ol></section>
+   <section class="ws-page ws-key"><div class="ws-head"><div><b>Answer key</b><span>${esc(ws.title||M.name+' worksheet')}</span></div></div><ol class="ws-list ws-keyl">${ws.qs.map((q,i)=>wsQ(q,i,true)).join('')}</ol></section></div>`:''}`}
+Object.assign(acts,{
+  hwcycle(d){const c=T('classes').find(x=>x.id===d.c);if(!c)return;c.hw=c.hw||{};const order=['','done','late','missing'],v=c.hw[d.s]||'';c.hw[d.s]=order[(order.indexOf(v)+1)%4];if(!c.hw[d.s])delete c.hw[d.s];tPutK('classes',c)},
+  asgdel(d){if(armed!=='a'+d.id){armed='a'+d.id;render();return}tDelK('assign',d.id)},
+  asggo(d){ptab='kids';ps={mod:d.m,ch:+d.n,phase:'learn'};cm=d.m;location.hash=d.m},
+  wsmake(){loadMod(ws.mod).then(()=>{if(!ws.chs.length){toast('Tick at least one chapter.',true);return}ws.qs=wsBuild();render()})}
+});
+Object.assign(forms,{
+  addmark(){const sc=parseFloat(val('mk-score')),out=parseFloat(val('mk-out'));if(!(out>0)||!(sc>=0)||sc>out){toast('Check the marks: score must be between 0 and the total.',true);return}
+    tPutK('marks',{id:newId('mk'),sid:tsel,subject:val('mk-sub'),test:val('mk-test'),score:sc,outOf:out,date:val('mk-date')||today()})},
+  addasg(){const ch=val('as-ch'),set=val('as-set');tPutK('assign',{id:newId('as'),target:val('as-to'),mod:asgDraft.mod,ch:+ch,set:set===''?'':+set,due:val('as-due')}).then(()=>toast('Assigned.'))}
+});
+document.addEventListener('change',e=>{const t=e.target,c=t.dataset.change;if(!c)return;
+  if(c==='asgmod'){asgDraft={mod:t.value,ch:1};loadMod(t.value).then(render)}if(c==='asgch'){asgDraft.ch=+t.value;render()}
+  if(c==='wsmod'){ws.mod=t.value;ws.chs=[];ws.qs=null;loadMod(t.value).then(render)}if(c==='wsn'){ws.n=+t.value}if(c==='wstitle'){ws.title=t.value}
+  if(c==='wsch'){const v=t.value;if(t.checked){if(ws.chs.indexOf(v)<0)ws.chs.push(v)}else ws.chs=ws.chs.filter(x=>x!==v)}});
+
 document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(b&&acts[b.dataset.act]){if(b.tagName==='BUTTON'&&b.type!=='submit'||b.tagName!=='BUTTON')e.preventDefault();acts[b.dataset.act](b.dataset)}});
 document.addEventListener('submit',e=>{const f=e.target.closest('[data-form]');if(f){e.preventDefault();forms[f.dataset.form]()}});
 document.addEventListener('change',e=>{const el=e.target.closest('[data-change="estatus"]');if(el){const en=tdata.enquiries.find(x=>x.id===el.dataset.id);en.status=el.value;S.tPut(tpin,'enquiries',en).then(render).catch(tfail)}});
 
-function render(){if(view!=='world')unmountWorld();if(view!=='toys')unmountToys();applyLang();const NEED=MODS[view]?[view]:['teacher','kids','world','practice'].indexOf(view)>=0?Object.keys(MODS):[];if(!needMods(NEED)){app.innerHTML='<p class="muted center" role="status">Loading\u2026</p>';return}app.innerHTML=view==='kids'?kids():view==='teacher'?teacher():MODS[view]?modPage():view==='programmes'?programmes():view==='about'?about():view==='learn'?learn():view==='faq'?faq():view==='book'?book():view==='world'?world():view==='check'?check():view==='pune'?pune():view==='privacy'?privacy():view==='practice'?practice():view==='toys'?toys():home();
-  if(LANG!=='en'&&['home','programmes','about','teacher','faq','book','check','privacy'].indexOf(view)<0)app.insertAdjacentHTML('afterbegin',`<p class="langnote" lang="${LANG}">${LANG==='mr'?'हे पान सध्या इंग्रजीत आहे.':'यह पेज अभी अंग्रेज़ी में है।'}</p>`);
+function render(){if(view!=='world')unmountWorld();if(view!=='toys')unmountToys();applyLang();const NEED=MODS[view]?[view]:['teacher','kids','world','practice'].indexOf(view)>=0?Object.keys(MODS):[];if(!needMods(NEED)){app.innerHTML='<p class="muted center" role="status">Loading\u2026</p>';return}app.innerHTML=view==='kids'?kids():view==='teacher'?teacher():MODS[view]?modPage():view==='programmes'?programmes():view==='about'?about():view==='learn'?learn():view==='faq'?faq():view==='book'?book():view==='world'?world():view==='check'?check():view==='pune'?pune():view==='privacy'?privacy():view==='practice'?practice():view==='guide'?parentGuide():view==='toys'?toys():home();
+  if(LANG!=='en'&&['home','programmes','about','teacher','faq','book','check','privacy','guide'].indexOf(view)<0)app.insertAdjacentHTML('afterbegin',`<p class="langnote" lang="${LANG}">${LANG==='mr'?'हे पान सध्या इंग्रजीत आहे.':'यह पेज अभी अंग्रेज़ी में है।'}</p>`);
   if(view==='world')mountWorld();if(view==='toys')mountToys();const nv=['phonics','maths','kids','bhasha','grammar','pune','mgram','hgram','toys','practice'].indexOf(view)>=0?'learn':view;document.querySelectorAll('.top nav a').forEach(a=>{if(a.getAttribute('href')==='#'+nv)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current')})}
-function route(){qz=null;setTimeout(gcCount,0);const h=(location.hash||'').slice(1);view=['home','kids','teacher','phonics','maths','programmes','about','learn','faq','book','bhasha','grammar','world','check','pune','privacy','mgram','hgram','toys','practice'].indexOf(h)>=0?h:'home';if(MODS[view]){cm=view;if(ps&&ps.mod!==cm)ps=null}msg='';buf='';pick=null;armed=null;render()}
+function route(){qz=null;const hv=(location.hash||'').slice(1);if(tdata&&['kids','world','pune','toys','practice','check'].indexOf(hv)>=0){tpin='';tdata=null;tsel=null;tcls=null;gTok=null}setTimeout(gcCount,0);const h=(location.hash||'').slice(1);view=['home','kids','teacher','phonics','maths','programmes','about','learn','faq','book','bhasha','grammar','world','check','pune','privacy','mgram','hgram','toys','practice','guide'].indexOf(h)>=0?h:'home';if(MODS[view]){cm=view;if(ps&&ps.mod!==cm)ps=null}msg='';buf='';pick=null;armed=null;render()}
 window.addEventListener('hashchange',route);route();
 
 /* ====== installable app: offline support ====== */

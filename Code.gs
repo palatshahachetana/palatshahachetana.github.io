@@ -26,7 +26,9 @@
  * - Monthly clean-up: deletes children marked Left for over 12 months (fee entries kept) and old
  *   enquiries that never joined, as promised on the website's Privacy page.
  */
-const KINDS = ['students', 'enquiries', 'batches', 'classes', 'fees'];
+const KINDS = ['students', 'enquiries', 'batches', 'classes', 'fees', 'notes', 'roadmaps', 'docs', 'marks', 'assign'];
+const MAX_UPLOAD = 7 * 1024 * 1024;   // ~5 MB file once base64-encoded
+const DOC_TYPES = /^(application\/pdf|image\/(jpeg|png|webp)|application\/vnd\.openxmlformats-officedocument\.(wordprocessingml\.document|spreadsheetml\.sheet|presentationml\.presentation)|application\/msword)$/;
 const KEEP = ['progress', 'stars', 'sessions', 'teach'];
 const SCHEMA = 1;
 const MAX_TRIES = 5, LOCK_SECONDS = 15 * 60, MAX_JSON = 50000, LEADS_PER_DAY = 30, KEEP_BACKUPS = 30, RETAIN_DAYS = 365;
@@ -59,7 +61,8 @@ function setTeacherPin() {
 
 /* ---------------- web entry points ---------------- */
 function doPost(e) {
-  if (!e || !e.postData || e.postData.contents.length > MAX_JSON) return out({ ok: false, error: 'Bad request' });
+  if (!e || !e.postData || e.postData.contents.length > MAX_UPLOAD) return out({ ok: false, error: 'Bad request' });
+  if (e.postData.contents.length > MAX_JSON && e.postData.contents.indexOf('"action":"tUpload"') < 0) return out({ ok: false, error: 'Bad request' });
   const lock = LockService.getScriptLock();
   lock.waitLock(15000);
   try {
@@ -145,6 +148,8 @@ function summary(kind, o) {
   if (kind === 'classes') return (o.date || '') + ': ' + (o.present || []).length + ' present, ' + (o.absent || []).length + ' absent';
   if (kind === 'batches') return o.name || '';
   if (kind === 'enquiries') return (o.parent || '') + ' - ' + (o.status || '');
+  if (kind === 'notes') return (o.tag || 'Note') + (o.sid ? ' about ' + o.sid : '');
+  if (kind === 'roadmaps') return (o.subject || '') + ': ' + (o.chapters || []).filter(function (c) { return c.done; }).length + '/' + (o.chapters || []).length + ' done';
   return '';
 }
 const today_ = function () { return Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd'); };
@@ -208,7 +213,9 @@ function handle(q) {
 
   switch (q.action) {
     case 'login': {
-      return { ok: true, data: kidView(kidCheck(read('students')).data) };
+      const me = kidCheck(read('students')).data, v = kidView(me);
+      v.assign = read('assign').map(function (r) { return r.data; }).filter(function (a) { return a.target === 's:' + me.id || a.target === 'b:' + me.batch; });
+      return { ok: true, data: v };
     }
     case 'sSave': {
       const students = read('students'), s = kidCheck(students);
@@ -255,9 +262,30 @@ function handle(q) {
         o.students = read('students').map(function (r) { return r.data; }).filter(function (s) { return s.status !== 'left' && mine(s.batch); })
           .map(function (s) { const x = safe(s); ['phone', 'parent', 'fee', 'school', 'consent', 'start'].forEach(function (k) { delete x[k]; }); return x; });
         o.classes = read('classes').map(function (r) { return r.data; }).filter(function (c) { return mine(c.batch); });
+        const ids = o.students.map(function (s) { return s.id; });
+        o.notes = read('notes').map(function (r) { return r.data; }).filter(function (n) { return n.sid ? ids.indexOf(n.sid) >= 0 : (n.batch ? mine(n.batch) : n.by === who.name); });
+        o.roadmaps = read('roadmaps').map(function (r) { return r.data; }).filter(function (x) { return mine(x.batch); });
+        o.docs = read('docs').map(function (r) { return r.data; }).filter(function (d) { return ids.indexOf(d.sid) >= 0; });
+        o.marks = read('marks').map(function (r) { return r.data; }).filter(function (m) { return ids.indexOf(m.sid) >= 0; });
+        o.assign = read('assign').map(function (r) { return r.data; }).filter(function (a) { return a.target.slice(0, 2) === 'b:' ? mine(a.target.slice(2)) : ids.indexOf(a.target.slice(2)) >= 0; });
         o.fees = []; o.enquiries = []; o.teachers = [];
       }
       return { ok: true, data: o };
+    }
+    case 'tUpload': {
+      teacher();
+      const o = q.o || {}, s = read('students').filter(function (r) { return r.id === String(o.sid); })[0];
+      if (!s || !mine(s.data.batch)) throw new Error('Only Chetana can do this');
+      if (!DOC_TYPES.test(String(o.mime))) throw new Error('That file type is not allowed');
+      const bytes = Utilities.base64Decode(String(o.data || ''));
+      if (!bytes.length || bytes.length > 5 * 1024 * 1024) throw new Error('Files must be under 5 MB');
+      const root = folder_('Tutoring documents', null), sub = folder_(clip(s.data.name, 30) + ' (' + s.id + ')', root);
+      const name = clip(o.name, 80).replace(/[\\/:*?"<>|]/g, '_') || 'document';
+      const file = sub.createFile(Utilities.newBlob(bytes, String(o.mime), name));
+      const d = { id: 'd' + Date.now().toString(36) + Utilities.getUuid().slice(0, 6), sid: s.id, subject: clip(o.subject, 30), name: name, fileId: file.getId(), mime: String(o.mime), size: bytes.length, date: today_(), by: who.role === 'owner' ? '' : who.name };
+      put('docs', d.id, d);
+      log('upload', 'docs', d.id, name + ' for ' + s.data.name + (d.by ? ' (by ' + d.by + ')' : ''));
+      return { ok: true, data: d };
     }
     case 'tTeacherPut': {
       owner();
@@ -291,8 +319,17 @@ function handle(q) {
       const rows = read(q.kind);
       if (who.role !== 'owner') {
         const old = rows.filter(function (r) { return r.id === String(o.id); })[0];
-        if (q.kind === 'classes') {
+        const kidMine = function (sid) { const s = read('students').filter(function (r) { return r.id === String(sid); })[0]; return !!s && mine(s.data.batch); };
+        if (q.kind === 'classes' || q.kind === 'roadmaps') {
           if (!mine(o.batch) || (old && !mine(old.data.batch))) throw new Error('Only Chetana can do this');
+        } else if (q.kind === 'marks') {
+          if (!kidMine(o.sid) || (old && !kidMine(old.data.sid))) throw new Error('Only Chetana can do this');
+        } else if (q.kind === 'assign') {
+          const okT = function (t) { return String(t).slice(0, 2) === 'b:' ? mine(String(t).slice(2)) : kidMine(String(t).slice(2)); };
+          if (!okT(o.target) || (old && !okT(old.data.target))) throw new Error('Only Chetana can do this');
+        } else if (q.kind === 'notes') {
+          if ((o.sid && !kidMine(o.sid)) || (o.batch && !mine(o.batch)) || (old && old.data.by !== who.name)) throw new Error('Only Chetana can do this');
+          o.by = who.name;
         } else if (q.kind === 'students') {
           if (!old || !mine(old.data.batch)) throw new Error('Only Chetana can do this');
           const merged = old.data;
@@ -303,6 +340,7 @@ function handle(q) {
           return { ok: true, data: x };
         } else throw new Error('Only Chetana can do this');
       }
+      if (q.kind === 'docs') throw new Error('Bad request');
       if (q.kind === 'students') {
         const old = rows.filter(function (r) { return r.id === String(o.id); })[0];
         if (old) KEEP.forEach(function (k) { if (k in old.data) o[k] = old.data[k]; });
@@ -323,8 +361,15 @@ function handle(q) {
       teacher();
       if (KINDS.indexOf(q.kind) < 0) throw new Error('Bad request');
       if (who.role !== 'owner') {
-        const c = q.kind === 'classes' && read('classes').filter(function (r) { return r.id === String(q.id); })[0];
-        if (!c || !mine(c.data.batch)) throw new Error('Only Chetana can do this');
+        const c = ['classes', 'roadmaps', 'notes', 'marks', 'assign'].indexOf(q.kind) >= 0 && read(q.kind).filter(function (r) { return r.id === String(q.id); })[0];
+        const kidOk = function (sid) { const s = read('students').filter(function (r) { return r.id === String(sid); })[0]; return !!s && mine(s.data.batch); };
+        const allowed = !c ? false : q.kind === 'notes' ? c.data.by === who.name : q.kind === 'marks' ? kidOk(c.data.sid)
+          : q.kind === 'assign' ? (String(c.data.target).slice(0, 2) === 'b:' ? mine(String(c.data.target).slice(2)) : kidOk(String(c.data.target).slice(2))) : mine(c.data.batch);
+        if (!allowed) throw new Error('Only Chetana can do this');
+      }
+      if (q.kind === 'docs') {
+        const d = read('docs').filter(function (r) { return r.id === String(q.id); })[0];
+        if (d) try { DriveApp.getFileById(d.data.fileId).setTrashed(true); } catch (err) {}
       }
       del(q.kind, q.id);
       log('delete', q.kind, q.id, '');
@@ -332,6 +377,11 @@ function handle(q) {
     }
   }
   throw new Error('Unknown action');
+}
+
+function folder_(name, parent) {
+  const it = parent ? parent.getFoldersByName(name) : DriveApp.getFoldersByName(name);
+  return it.hasNext() ? it.next() : (parent ? parent.createFolder(name) : DriveApp.createFolder(name));
 }
 
 /* ---------------- scheduled jobs ---------------- */
@@ -370,6 +420,9 @@ function monthlyCleanup() {
       ids.forEach(function (x) { if (d.notes) delete d.notes[x]; });
       if (JSON.stringify(d) !== before) put('classes', c.id, d);
     });
+    read('marks').filter(function (n) { return ids.indexOf(n.data.sid) >= 0; }).sort(function (a, b) { return b.row - a.row; }).forEach(function (n) { tab('marks').deleteRow(n.row); });
+    read('notes').filter(function (n) { return ids.indexOf(n.data.sid) >= 0; }).sort(function (a, b) { return b.row - a.row; }).forEach(function (n) { tab('notes').deleteRow(n.row); });
+    read('docs').filter(function (d) { return ids.indexOf(d.data.sid) >= 0; }).sort(function (a, b) { return b.row - a.row; }).forEach(function (d) { try { DriveApp.getFileById(d.data.fileId).setTrashed(true); } catch (err) {} tab('docs').deleteRow(d.row); });
     gone.sort(function (a, b) { return b.row - a.row; }).forEach(function (r) { tab('students').deleteRow(r.row); log('retention', 'students', r.id, 'Deleted: left over 12 months ago'); });
   }
   read('enquiries').filter(function (r) { return r.data.status !== 'Joined' && (r.data.date || '9') < cut; })

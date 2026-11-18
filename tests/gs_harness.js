@@ -31,8 +31,14 @@ const ctx = {
     computeDigest: (a, s) => [...crypto.createHash('sha256').update(s, 'utf8').digest()].map(b => (b > 127 ? b - 256 : b)),
     getUuid: () => crypto.randomUUID(),
     formatDate: (d) => d.toISOString().slice(0, 10),
+    base64Decode: s => [...Buffer.from(s, 'base64')], newBlob: (b, m, nm) => ({ b, m, nm }),
   },
-  DriveApp: {}, ScriptApp: {}, console,
+  DriveApp: (() => { const folders = {}, files = {}; let n = 0;
+    const mk = name => ({ name, getFoldersByName: x => { const f = folders[name + '/' + x]; return { hasNext: () => !!f, next: () => f }; },
+      createFolder: x => (folders[name + '/' + x] = mk(name + '/' + x)), createFile: blob => { const id = 'F' + (++n); files[id] = { blob, trashed: false }; return { getId: () => id }; } });
+    const root = mk('');
+    return { files, getFoldersByName: root.getFoldersByName, createFolder: root.createFolder, getFileById: id => ({ setTrashed: t => { files[id].trashed = t; } }) }; })(),
+  ScriptApp: {}, console,
   UrlFetchApp: { fetch: (url) => { const tok = decodeURIComponent(url.split('id_token=')[1]); const t = TOKENS[tok];
     return { getResponseCode: () => (t ? 200 : 400), getContentText: () => JSON.stringify(t || {}) }; } },
 };
@@ -160,5 +166,43 @@ check('error reports: write-only, clipped, capped', () => {
   assert.strictEqual(post({ action: 'err', e: { m: 'x'.repeat(500), src: 'app.js', line: 12, view: 'home', ua: 'UA' } }).data, true);
   const row = ss.getSheetByName('errors').rows[1];
   assert.ok(row[2].length === 200 && row[1] === 'home');
+});
+check('documents: upload to Drive, type and size checks, teacher limits, delete trashes file', () => {
+  const pdf = Buffer.from('%PDF-1.4 test').toString('base64');
+  assert.match(post({ action: 'tUpload', pin: T, o: { sid: 'k1', name: 'x.exe', mime: 'application/x-msdownload', data: pdf } }).error, /not allowed/);
+  const r = post({ action: 'tUpload', pin: T, o: { sid: 'k1', subject: 'Maths', name: 'unit test.pdf', mime: 'application/pdf', data: pdf } });
+  assert.ok(r.ok && r.data.fileId && r.data.size > 5);
+  assert.ok(post({ action: 'tTeacherPut', pin: T, o: { id: 't1', name: 'Asha', batches: ['bA'], active: true, pin: '246824' } }).ok);
+  assert.ok(post({ action: 'tUpload', pin: '246824', o: { sid: 'k1', name: 'hw.jpg', mime: 'image/jpeg', data: pdf } }).ok);
+  assert.match(post({ action: 'tUpload', pin: '246824', o: { sid: 'k2', name: 'hw.jpg', mime: 'image/jpeg', data: pdf } }).error, /Only Chetana/);
+  assert.match(post({ action: 'tDel', pin: '246824', kind: 'docs', id: r.data.id }).error, /Only Chetana/);
+  assert.ok(post({ action: 'tDel', pin: T, kind: 'docs', id: r.data.id }).ok);
+  assert.strictEqual(ctx.DriveApp.files[r.data.fileId].trashed, true);
+  assert.match(post({ action: 'tPut', pin: T, kind: 'docs', o: { id: 'x' } }).error, /Bad request/);
+});
+check('notes and roadmaps: teacher limited to own batch and own notes', () => {
+  const A = '246824';
+  assert.ok(post({ action: 'tPut', pin: A, kind: 'notes', o: { id: 'n1', sid: 'k1', tag: 'Win', text: 'Read a page', by: 'Fake' } }).ok);
+  assert.strictEqual(post({ action: 'tAll', pin: T }).data.notes.find(x => x.id === 'n1').by, 'Asha');
+  assert.match(post({ action: 'tPut', pin: A, kind: 'notes', o: { id: 'n2', sid: 'k2', text: 'x' } }).error, /Only Chetana/);
+  post({ action: 'tPut', pin: T, kind: 'notes', o: { id: 'n3', sid: 'k1', text: 'owner note' } });
+  assert.match(post({ action: 'tDel', pin: A, kind: 'notes', id: 'n3' }).error, /Only Chetana/);
+  assert.ok(post({ action: 'tPut', pin: A, kind: 'roadmaps', o: { id: 'r1', batch: 'bA', subject: 'Maths', chapters: [{ t: 'Fractions', done: '' }] } }).ok);
+  assert.match(post({ action: 'tPut', pin: A, kind: 'roadmaps', o: { id: 'r2', batch: 'bB', subject: 'Maths' } }).error, /Only Chetana/);
+  const d = post({ action: 'tAll', pin: A }).data;
+  assert.deepStrictEqual(d.roadmaps.map(x => x.id), ['r1']);
+  assert.ok(d.notes.every(x => x.sid === 'k1'));
+});
+check('marks and assignments: teacher limits; kid login carries own assignments', () => {
+  const A = '246824';
+  assert.ok(post({ action: 'tPut', pin: A, kind: 'marks', o: { id: 'm1', sid: 'k1', subject: 'Maths', test: 'UT1', score: 20, outOf: 25 } }).ok);
+  assert.match(post({ action: 'tPut', pin: A, kind: 'marks', o: { id: 'm2', sid: 'k2', subject: 'Maths', test: 'UT1', score: 20, outOf: 25 } }).error, /Only Chetana/);
+  assert.ok(post({ action: 'tPut', pin: A, kind: 'assign', o: { id: 'a1', target: 'b:bA', mod: 'maths', ch: 6, set: 1, due: '2026-12-01' } }).ok);
+  assert.match(post({ action: 'tPut', pin: A, kind: 'assign', o: { id: 'a2', target: 's:k2', mod: 'maths', ch: 6 } }).error, /Only Chetana/);
+  post({ action: 'tPut', pin: T, kind: 'assign', o: { id: 'a3', target: 's:k2', mod: 'maths', ch: 2 } });
+  const me = post({ action: 'login', name: 'myra', pin: '1212' }).data;
+  assert.deepStrictEqual(me.assign.map(a => a.id), ['a1']);
+  assert.match(post({ action: 'tDel', pin: A, kind: 'assign', id: 'a3' }).error, /Only Chetana/);
+  assert.ok(post({ action: 'tDel', pin: A, kind: 'assign', id: 'a1' }).ok);
 });
 console.log(n + ' checks\nALL OK');

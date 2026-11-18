@@ -43,3 +43,17 @@ Adds a second lock: the right Google account **and** the PIN.
 4. In `config.js`, set `GOOGLE_CLIENT_ID` to the same Client ID and upload.
 Each extra teacher then also needs their Google email filled in (Setup > Edit teacher).
 To turn it off: run `setGoogleSignIn` with `CLIENT_ID = ''` and clear `GOOGLE_CLIENT_ID` in `config.js`.
+
+## Teacher console extras
+- **Notes:** a notebook per child or general (parent calls, concerns, wins, test results).
+- **Weekly updates:** Students > Weekly updates and monthly reports. One WhatsApp message per child: attendance, topics, homework, notes, practice, next test.
+- **Roadmaps:** one per batch and subject. Paste the chapters, let it plan the weeks, add school test dates. Tick chapters in the class log; Today warns when a test is close and chapters are left.
+- **Documents:** upload PDFs, photos, Word, Excel or PowerPoint (up to 5 MB) on a student's page. They go to Drive folder "Tutoring documents", one folder per child.
+  The first upload asks Google for Drive permission again: approve it in Apps Script after redeploying.
+- **Assign:** set a chapter or a single practice set for a batch or one child, with a due date. It appears on the child's Kids' Zone page; you see who has finished.
+- **Worksheets:** pick a subject, chapters and 10–30 questions; print or save as PDF. The answer key prints on its own page.
+- **Cards:** concept card builder for WhatsApp/Instagram posts (square, story or wide), five starter templates, saved on this device.
+- **Homework check:** the class log shows the previous class's homework; tap each child: done, late, missing. Missing homework shows on Today and in weekly updates.
+- **Test marks:** on each student's page, with a trend line; included in weekly and monthly reports.
+- **Parent guide:** public page at #guide (English, Marathi, Hindi), printable.
+- Opening any children's area (Kids' Zone, Kids' World, Practice...) locks the teacher console automatically.
