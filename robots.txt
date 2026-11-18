@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://palatshahachetana.github.io/sitemap.xml
