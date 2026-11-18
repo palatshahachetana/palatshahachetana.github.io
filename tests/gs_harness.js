@@ -14,9 +14,11 @@ function makeSheet(name) {
   return sh;
 }
 const sheets = [];
+const TOKENS = {};
 const ss = { getSheetByName: n => sheets.find(s => s.name === n) || null, insertSheet: n => { const s = makeSheet(n); sheets.push(s); return s; }, getId: () => 'id', getName: () => 'Tutoring data' };
 const store = () => { const m = {}; return { getProperty: k => (k in m ? m[k] : null), setProperty: (k, v) => { m[k] = String(v); }, get: k => (k in m ? m[k] : null), put: (k, v) => { m[k] = String(v); }, remove: k => { delete m[k]; } }; };
 const props = store(), cache = store();
+props.deleteProperty = k => { props.setProperty(k, ''); };
 const ctx = {
   SpreadsheetApp: { getActiveSpreadsheet: () => ss },
   PropertiesService: { getScriptProperties: () => props },
@@ -31,6 +33,8 @@ const ctx = {
     formatDate: (d) => d.toISOString().slice(0, 10),
   },
   DriveApp: {}, ScriptApp: {}, console,
+  UrlFetchApp: { fetch: (url) => { const tok = decodeURIComponent(url.split('id_token=')[1]); const t = TOKENS[tok];
+    return { getResponseCode: () => (t ? 200 : 400), getContentText: () => JSON.stringify(t || {}) }; } },
 };
 vm.createContext(ctx);
 vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'apps-script', 'Code.gs'), 'utf8') + '\nthis.__h={doPost,doGet,handle,hash,monthlyCleanup,read,put,migrateToTabs};', ctx);
@@ -109,5 +113,52 @@ check('migrateToTabs moves version 2 data', () => {
   const old = ss.insertSheet('data'); old.appendRow(['kind', 'id', 'json', 'updated']); old.appendRow(['batches', 'b9', '{"id":"b9","name":"Old batch"}', new Date()]);
   H.migrateToTabs();
   assert.ok(post({ action: 'tAll', pin: T }).data.batches.some(b => b.name === 'Old batch'));
+});
+check('second teacher sees only her batch, no fees or phones', () => {
+  post({ action: 'tPut', pin: T, kind: 'batches', o: { id: 'bA', name: 'Grade 3' } });
+  post({ action: 'tPut', pin: T, kind: 'batches', o: { id: 'bB', name: 'Grade 6' } });
+  post({ action: 'tPut', pin: T, kind: 'students', o: { id: 'k1', name: 'Myra', pin: '1212', batch: 'bA', phone: '9000000001', fee: '1200', status: 'active' } });
+  post({ action: 'tPut', pin: T, kind: 'students', o: { id: 'k2', name: 'Vir', pin: '3434', batch: 'bB', phone: '9000000002', status: 'active' } });
+  assert.match(post({ action: 'tTeacherPut', pin: T, o: { name: 'Asha', pin: T, batches: ['bA'] } }).error, /different PIN/);
+  assert.ok(post({ action: 'tTeacherPut', pin: T, o: { id: 't1', name: 'Asha', pin: '135790', batches: ['bA'] } }).ok);
+  const d = post({ action: 'tAll', pin: '135790' }).data;
+  assert.strictEqual(d.me.role, 'teacher');
+  assert.deepStrictEqual(d.students.map(s => s.name), ['Myra']);
+  assert.ok(!('phone' in d.students[0]) && !('fee' in d.students[0]));
+  assert.deepStrictEqual(d.fees, []); assert.deepStrictEqual(d.enquiries, []); assert.deepStrictEqual(d.batches.map(b => b.id), ['bA']);
+  assert.ok(!JSON.stringify(post({ action: 'tAll', pin: T }).data.teachers).includes('pinHash'));
+});
+check('second teacher: allowed and blocked writes', () => {
+  const A = '135790';
+  assert.ok(post({ action: 'tPut', pin: A, kind: 'classes', o: { id: 'cA', batch: 'bA', date: '2026-11-18', present: ['k1'], absent: [] } }).ok);
+  assert.match(post({ action: 'tPut', pin: A, kind: 'classes', o: { id: 'cB', batch: 'bB', date: '2026-11-18', present: [], absent: [] } }).error, /Only Chetana/);
+  assert.match(post({ action: 'tPut', pin: A, kind: 'fees', o: { id: 'f1', sid: 'k1', paid: true } }).error, /Only Chetana/);
+  assert.match(post({ action: 'tPut', pin: A, kind: 'students', o: { id: 'k2', note: 'x' } }).error, /Only Chetana/);
+  const r = post({ action: 'tPut', pin: A, kind: 'students', o: { id: 'k1', note: 'Good reader', fee: '1', phone: 'hacked', status: 'left' } });
+  assert.ok(r.ok);
+  const s = post({ action: 'tAll', pin: T }).data.students.find(x => x.id === 'k1');
+  assert.ok(s.note === 'Good reader' && s.fee === '1200' && s.phone === '9000000001' && s.status === 'active');
+  assert.match(post({ action: 'tTeacherPut', pin: A, o: { name: 'Evil', pin: '999999' } }).error, /Only Chetana/);
+  assert.match(post({ action: 'tDel', pin: A, kind: 'students', id: 'k1' }).error, /Only Chetana/);
+  assert.ok(post({ action: 'tTeacherPut', pin: T, o: { id: 't1', name: 'Asha', batches: ['bA'], active: false } }).ok);
+  assert.strictEqual(post({ action: 'tAll', pin: A }).error, 'Wrong PIN');
+  cache.remove('lock_teacher');
+});
+check('Google sign-in: token required, checked and matched to the right person', () => {
+  props.setProperty('G_CLIENT', 'client-1'); props.setProperty('OWNER_EMAIL', 'chetana@gmail.com');
+  const exp = Math.floor(Date.now() / 1000) + 3600;
+  TOKENS.good = { aud: 'client-1', email: 'Chetana@gmail.com', email_verified: 'true', iss: 'https://accounts.google.com', exp };
+  TOKENS.other = { aud: 'client-1', email: 'someone@gmail.com', email_verified: 'true', iss: 'accounts.google.com', exp };
+  TOKENS.wrongapp = { aud: 'client-2', email: 'chetana@gmail.com', email_verified: 'true', iss: 'accounts.google.com', exp };
+  assert.match(post({ action: 'tAll', pin: T }).error, /Google sign-in needed/);
+  assert.match(post({ action: 'tAll', pin: T, idToken: 'wrongapp' }).error, /expired/);
+  assert.strictEqual(post({ action: 'tAll', pin: T, idToken: 'other' }).error, 'Wrong PIN');
+  assert.strictEqual(post({ action: 'tAll', pin: T, idToken: 'good' }).data.me.role, 'owner');
+  cache.remove('lock_teacher'); props.setProperty('G_CLIENT', '');
+});
+check('error reports: write-only, clipped, capped', () => {
+  assert.strictEqual(post({ action: 'err', e: { m: 'x'.repeat(500), src: 'app.js', line: 12, view: 'home', ua: 'UA' } }).data, true);
+  const row = ss.getSheetByName('errors').rows[1];
+  assert.ok(row[2].length === 200 && row[1] === 'home');
 });
 console.log(n + ' checks\nALL OK');

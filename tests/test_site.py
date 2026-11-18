@@ -2,7 +2,7 @@
 import datetime, os, re
 
 ROUTES = ["home", "programmes", "about", "learn", "faq", "book", "check", "world", "pune", "privacy",
-          "kids", "teacher", "phonics", "maths", "bhasha", "grammar"]
+          "kids", "teacher", "phonics", "maths", "bhasha", "grammar", "mgram", "hgram", "practice", "toys"]
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
@@ -25,6 +25,15 @@ def test_no_inline_scripts_and_strict_csp():
     csp = re.search(r'Content-Security-Policy" content="([^"]+)"', html).group(1)
     script_src = re.search(r"script-src ([^;]+)", csp).group(1)
     assert "unsafe-inline" not in script_src and "unsafe-eval" not in script_src
+
+
+def test_home_does_not_download_lesson_modules(page):
+    loaded = []
+    page.on("request", lambda r: loaded.append(r.url))
+    page.go("home", 600)
+    assert not [u for u in loaded if "/mod-" in u]
+    page.go("maths", 800)
+    assert any("mod-maths.js" in u for u in loaded)
 
 
 def test_sync_url_lives_only_in_config():
@@ -68,6 +77,7 @@ CHECK_JS = """(()=>{
 
 def test_every_question_has_exactly_one_right_answer(page):
     page.go("home")
+    page.evaluate("loadAllMods()")
     assert page.evaluate(CHECK_JS) == []
 
 
@@ -79,6 +89,7 @@ def test_starting_check_runs_end_to_end(page):
             page.click("[data-act=ckagain]")
         page.check(f"input[value={band}]")
         page.click("[data-act=ckgo]")
+        page.wait_for_selector("[data-act=ckskip]")
         while page.locator("[data-act=ckskip]").count():
             page.click("[data-act=ckskip]")
         assert page.locator(".ckring b").inner_text() == "0"
@@ -130,6 +141,8 @@ def test_teacher_console_full_day(page):
     # fees
     page.click("[data-act=ttab][data-t=fees]")
     page.locator("[data-act=tpaid][data-m=UPI]").first.click()
+    page.wait_for_selector(".receipt")
+    page.click("[data-act=trclose]")
     assert "₹1,500" in page.locator(".stat").first.inner_text()
     # leaving sets leftOn and hides from kids login
     page.click("[data-act=ttab][data-t=students]")

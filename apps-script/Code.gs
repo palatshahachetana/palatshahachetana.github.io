@@ -8,6 +8,11 @@
  * 3. setupTriggers: choose it in the toolbar and Run once (nightly backup + monthly clean-up).
  * 4. Deploy > New deployment > Web app. Execute as: Me. Who has access: Anyone. Copy the URL into config.js.
  *
+ * OPTIONAL
+ * - Second teacher: Chetana adds them in the website (Setup tab). They get their own PIN and see only their batches,
+ *   with no fees, phone numbers or leads.
+ * - Google sign-in for the teacher area: see setGoogleSignIn below.
+ *
  * UPGRADING FROM VERSION 1 OR 2
  * Paste this file over the old one and save. Run migrateToTabs once, then setupTriggers once.
  * (From version 1 only: also run migratePins.) Then Deploy > Manage deployments > Edit > New version > Deploy.
@@ -16,7 +21,7 @@
  * - PINs are stored only as salted SHA-256 hashes. 5 wrong tries locks that login for 15 minutes.
  * - No public list of names. Parent numbers, fees, class logs and leads need the teacher PIN.
  * - At most 60 requests a minute in total. Website enquiries: at most 30 a day, with a spam trap.
- * - Every teacher change, enquiry and lockout is written to the "log" tab.
+ * - Every teacher change, enquiry and lockout is written to the "log" tab. Website errors go to the "errors" tab.
  * - Nightly copy of the Sheet into Drive folder "Tutoring backups" (last 30 kept).
  * - Monthly clean-up: deletes children marked Left for over 12 months (fee entries kept) and old
  *   enquiries that never joined, as promised on the website's Privacy page.
@@ -25,6 +30,20 @@ const KINDS = ['students', 'enquiries', 'batches', 'classes', 'fees'];
 const KEEP = ['progress', 'stars', 'sessions', 'teach'];
 const SCHEMA = 1;
 const MAX_TRIES = 5, LOCK_SECONDS = 15 * 60, MAX_JSON = 50000, LEADS_PER_DAY = 30, KEEP_BACKUPS = 30, RETAIN_DAYS = 365;
+
+/* Optional: require "Sign in with Google" before the PIN. Fill in both, Run once, then redeploy (New version).
+   CLIENT_ID comes from Google Cloud Console > APIs & Services > Credentials > OAuth client ID (Web application),
+   with https://palatshahachetana.github.io as an authorised JavaScript origin. To turn it off, run with CLIENT_ID = ''. */
+function setGoogleSignIn() {
+  const CLIENT_ID = '';            // e.g. 1234-abc.apps.googleusercontent.com
+  const OWNER_EMAIL = '';          // Chetana's Gmail address
+  const p = PropertiesService.getScriptProperties();
+  if (!CLIENT_ID) { p.deleteProperty('G_CLIENT'); log('setup', '', '', 'Google sign-in turned off'); return 'Off'; }
+  if (!/@/.test(OWNER_EMAIL)) throw new Error('Add the owner email');
+  p.setProperty('G_CLIENT', CLIENT_ID); p.setProperty('OWNER_EMAIL', OWNER_EMAIL.toLowerCase().trim());
+  log('setup', '', '', 'Google sign-in turned on');
+  return 'On';
+}
 
 function setTeacherPin() {
   const NEW_PIN = '';           // 6 to 8 digits; Run once, then clear it again
@@ -134,14 +153,46 @@ function kidView(s) { const o = { id: s.id, name: s.name, grade: s.grade, level:
 function clip(v, n) { return String(v == null ? '' : v).replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, n); }
 
 /* ---------------- requests ---------------- */
+/* Verifies a Google ID token (only when Google sign-in is turned on). Returns the verified email. */
+function googleEmail(token) {
+  const p = PropertiesService.getScriptProperties(), client = p.getProperty('G_CLIENT');
+  if (!client) return null;
+  if (!token) throw new Error('Google sign-in needed');
+  const c = CacheService.getScriptCache(), key = 'gt_' + hash(token, 'g').slice(0, 40), hit = c.get(key);
+  if (hit) return hit;
+  const res = UrlFetchApp.fetch('https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(token), { muteHttpExceptions: true });
+  if (res.getResponseCode() !== 200) throw new Error('Google sign-in expired');
+  const t = JSON.parse(res.getContentText());
+  if (t.aud !== client || String(t.email_verified) !== 'true' || ['accounts.google.com', 'https://accounts.google.com'].indexOf(t.iss) < 0 || Number(t.exp) * 1000 < Date.now())
+    throw new Error('Google sign-in expired');
+  const email = String(t.email).toLowerCase();
+  c.put(key, email, Math.max(60, Math.min(3000, Number(t.exp) - Math.floor(Date.now() / 1000) - 60)));
+  return email;
+}
+/* Who is calling? Chetana (owner) or a teacher she added. Throws on a wrong PIN. */
+function whoIs(q) {
+  guard('teacher');
+  const p = PropertiesService.getScriptProperties();
+  if (!p.getProperty('T_HASH')) throw new Error('Teacher PIN not set up yet. Run setTeacherPin in Apps Script.');
+  const email = googleEmail(q.idToken), gOn = !!p.getProperty('G_CLIENT');
+  if (hash(q.pin, p.getProperty('T_SALT')) === p.getProperty('T_HASH') && (!gOn || email === p.getProperty('OWNER_EMAIL'))) {
+    cleared('teacher'); return { role: 'owner', id: 'owner', name: 'Chetana', batches: [] };
+  }
+  const h = hash(q.pin, pinSalt());
+  const t = read('teachers').map(function (r) { return r.data; }).filter(function (x) {
+    return x.active !== false && x.pinHash === h && (!gOn || String(x.email || '').toLowerCase() === email);
+  })[0];
+  if (!t) fail('teacher');
+  cleared('teacher');
+  return { role: 'teacher', id: t.id, name: t.name, batches: t.batches || [] };
+}
+const TEACHER_STUDENT_FIELDS = ['level', 'note', 'mistakes'];
+
 function handle(q) {
-  const teacher = function () {
-    guard('teacher');
-    const p = PropertiesService.getScriptProperties();
-    if (!p.getProperty('T_HASH')) throw new Error('Teacher PIN not set up yet. Run setTeacherPin in Apps Script.');
-    if (hash(q.pin, p.getProperty('T_SALT')) !== p.getProperty('T_HASH')) fail('teacher');
-    cleared('teacher');
-  };
+  let who = null;
+  const teacher = function () { who = whoIs(q); return who; };
+  const owner = function () { if (teacher().role !== 'owner') throw new Error('Only Chetana can do this'); };
+  const mine = function (batchId) { return who.role === 'owner' || who.batches.indexOf(batchId) >= 0; };
   const kidCheck = function (students) {
     const name = clip(q.name, 30).toLowerCase(), key = 'kid_' + (q.id ? String(q.id) : name);
     guard(key);
@@ -183,16 +234,75 @@ function handle(q) {
       log('lead', 'enquiries', id, e.source + ': ' + e.parent);
       return { ok: true, data: true };
     }
+    case 'err': {                                      // public: website error report, write-only, no personal data
+      const e = q.e || {}, p = PropertiesService.getScriptProperties(), dk = 'errs_' + today_();
+      const n = Number(p.getProperty(dk) || 0) + 1;
+      if (n > 100) return { ok: true, data: true };
+      p.setProperty(dk, String(n));
+      let sh = book_().getSheetByName('errors');
+      if (!sh) { sh = book_().insertSheet('errors'); sh.appendRow(['time', 'page', 'message', 'file', 'line', 'browser']); sh.setFrozenRows(1); }
+      sh.appendRow([new Date(), clip(e.view, 20), clip(e.m, 200), clip(e.src, 60), Number(e.line) || 0, clip(e.ua, 120)]);
+      return { ok: true, data: true };
+    }
     case 'tAll': {
       teacher();
-      const o = {};
-      KINDS.forEach(function (k) { o[k] = read(k).map(function (r) { return k === 'students' ? safe(r.data) : r.data; }); });
+      const o = { me: who };
+      if (who.role === 'owner') {
+        KINDS.forEach(function (k) { o[k] = read(k).map(function (r) { return k === 'students' ? safe(r.data) : r.data; }); });
+        o.teachers = read('teachers').map(function (r) { const t = JSON.parse(JSON.stringify(r.data)); delete t.pinHash; return t; });
+      } else {
+        o.batches = read('batches').map(function (r) { return r.data; }).filter(function (b) { return mine(b.id); });
+        o.students = read('students').map(function (r) { return r.data; }).filter(function (s) { return s.status !== 'left' && mine(s.batch); })
+          .map(function (s) { const x = safe(s); ['phone', 'parent', 'fee', 'school', 'consent', 'start'].forEach(function (k) { delete x[k]; }); return x; });
+        o.classes = read('classes').map(function (r) { return r.data; }).filter(function (c) { return mine(c.batch); });
+        o.fees = []; o.enquiries = []; o.teachers = [];
+      }
       return { ok: true, data: o };
+    }
+    case 'tTeacherPut': {
+      owner();
+      const t = q.o || {}, rows = read('teachers'), old = rows.filter(function (r) { return r.id === String(t.id); })[0];
+      const o = { id: clip(t.id, 30) || ('t' + Date.now()), name: clip(t.name, 30), email: clip(t.email, 80).toLowerCase(),
+        batches: (t.batches || []).map(function (b) { return clip(b, 40); }), active: t.active !== false };
+      if (!o.name) throw new Error('Add a name');
+      if (t.pin) {
+        if (!/^\d{6,8}$/.test(String(t.pin))) throw new Error('Teacher PINs need 6 to 8 digits');
+        const p = PropertiesService.getScriptProperties();
+        if (hash(t.pin, p.getProperty('T_SALT')) === p.getProperty('T_HASH')) throw new Error('Choose a different PIN');
+        o.pinHash = hash(t.pin, pinSalt());
+        if (rows.some(function (r) { return r.id !== o.id && r.data.pinHash === o.pinHash; })) throw new Error('Choose a different PIN');
+      } else if (old) o.pinHash = old.data.pinHash;
+      else throw new Error('Set a PIN for the new teacher');
+      put('teachers', o.id, o, rows);
+      log('teacher', 'teachers', o.id, o.name + (o.active ? '' : ' (turned off)') + (t.pin ? ', PIN set' : ''));
+      const back = JSON.parse(JSON.stringify(o)); delete back.pinHash;
+      return { ok: true, data: back };
+    }
+    case 'tTeacherDel': {
+      owner();
+      del('teachers', q.id);
+      log('delete', 'teachers', q.id, '');
+      return { ok: true, data: true };
     }
     case 'tPut': {
       teacher();
       if (KINDS.indexOf(q.kind) < 0 || !q.o || !q.o.id) throw new Error('Bad request');
-      const o = q.o, rows = read(q.kind);
+      let o = q.o;
+      const rows = read(q.kind);
+      if (who.role !== 'owner') {
+        const old = rows.filter(function (r) { return r.id === String(o.id); })[0];
+        if (q.kind === 'classes') {
+          if (!mine(o.batch) || (old && !mine(old.data.batch))) throw new Error('Only Chetana can do this');
+        } else if (q.kind === 'students') {
+          if (!old || !mine(old.data.batch)) throw new Error('Only Chetana can do this');
+          const merged = old.data;
+          TEACHER_STUDENT_FIELDS.forEach(function (k) { if (k in o) merged[k] = o[k]; });
+          put('students', merged.id, merged, rows);
+          log('save', 'students', merged.id, 'Notes/level by ' + who.name);
+          const x = safe(merged); ['phone', 'parent', 'fee', 'school', 'consent', 'start'].forEach(function (k) { delete x[k]; });
+          return { ok: true, data: x };
+        } else throw new Error('Only Chetana can do this');
+      }
       if (q.kind === 'students') {
         const old = rows.filter(function (r) { return r.id === String(o.id); })[0];
         if (old) KEEP.forEach(function (k) { if (k in old.data) o[k] = old.data[k]; });
@@ -206,12 +316,16 @@ function handle(q) {
         if (o.status !== 'left') delete o.leftOn;
       }
       put(q.kind, o.id, o, rows);
-      log('save', q.kind, o.id, summary(q.kind, o));
+      log('save', q.kind, o.id, summary(q.kind, o) + (who.role === 'owner' ? '' : ' (by ' + who.name + ')'));
       return { ok: true, data: q.kind === 'students' ? safe(o) : o };
     }
     case 'tDel': {
       teacher();
       if (KINDS.indexOf(q.kind) < 0) throw new Error('Bad request');
+      if (who.role !== 'owner') {
+        const c = q.kind === 'classes' && read('classes').filter(function (r) { return r.id === String(q.id); })[0];
+        if (!c || !mine(c.data.batch)) throw new Error('Only Chetana can do this');
+      }
       del(q.kind, q.id);
       log('delete', q.kind, q.id, '');
       return { ok: true, data: true };

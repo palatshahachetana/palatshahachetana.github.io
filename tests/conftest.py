@@ -28,7 +28,7 @@ def browser():
 @pytest.fixture
 def page(browser, base_url):
     """A phone-sized page in device-only mode (the Google Sheet is never called in tests)."""
-    ctx = browser.new_context(viewport={"width": 390, "height": 844})
+    ctx = browser.new_context(viewport={"width": 390, "height": 844}, service_workers="block")
     pg = ctx.new_page()
     pg.errors = []
     pg.on("pageerror", lambda e: pg.errors.append(str(e)))

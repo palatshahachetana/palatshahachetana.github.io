@@ -26,14 +26,14 @@ const Local={
   async names(){return Object.values(db().students).filter(s=>s.status!=='left').map(s=>({id:s.id,name:s.name}))},
   async login(id,pin,name){const n=String(name||'').trim().toLowerCase(),s=id?db().students[id]:Object.values(db().students).find(x=>x.status!=='left'&&x.name.trim().toLowerCase()===n&&x.pin===pin);if(!s||s.pin!==pin||s.status==='left')throw Error('Wrong PIN');return s},
   async sSave(id,pin,patch){const d=db(),s=d.students[id];if(!s||s.pin!==pin)throw Error('Wrong PIN');KEEP.forEach(k=>{if(k in patch)s[k]=patch[k]});ls.set('ct_data',d)},
-  async tAll(pin){const d=db();tcheck(d,pin);ls.set('ct_data',d);const o={};TK.forEach(k=>o[k]=Object.values(d[k]));return o},
+  async tAll(pin){const d=db();tcheck(d,pin);ls.set('ct_data',d);const o={me:{role:'owner',name:'Chetana'}};TK.forEach(k=>o[k]=Object.values(d[k]));o.teachers=[];return o},
   async tPut(pin,kind,o){const d=db();tcheck(d,pin);if(TK.indexOf(kind)<0)throw Error('Bad request');if(kind==='students'&&!o.pin&&d.students[o.id])o.pin=d.students[o.id].pin;const old=d[kind][o.id];if(kind==='students'&&old)KEEP.forEach(k=>{if(k in old)o[k]=old[k]});d[kind][o.id]=o;ls.set('ct_data',d);return o},
   async tDel(pin,kind,id){const d=db();tcheck(d,pin);delete d[kind][id];ls.set('ct_data',d)},
   async lead(o){if(o.web)return;const d=db(),id='w_'+o.id;d.enquiries[id]={id,parent:o.parent||'(not given)',child:o.child||'',grade:o.grade||'',phone:o.phone||'',source:o.source,note:o.note||'',status:'New',date:today()};ls.set('ct_data',d)}
 };
 async function call(action,p,tries){tries=tries==null?1:tries;let r;
   const ctl=typeof AbortController!=='undefined'?new AbortController():null,t=ctl&&setTimeout(()=>ctl.abort(),20000);
-  try{r=await fetch(SYNC_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(Object.assign({action},p)),signal:ctl&&ctl.signal})}
+  try{r=await fetch(SYNC_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(Object.assign({action},p,gTok&&action[0]==='t'?{idToken:gTok}:{})),signal:ctl&&ctl.signal})}
   catch(e){if(tries>0){await new Promise(z=>setTimeout(z,1500));return call(action,p,tries-1)}throw Error('offline')}
   finally{if(t)clearTimeout(t)}
   let j;try{j=await r.json()}catch(e){throw Error('offline')}
@@ -88,35 +88,54 @@ let tpin='',tdata=null,tview='today',tsel=null,armed=null;
 
 /* ====== views ====== */
 function home(){return `
-<section class="hero hasme"><img class="me" src="img/chetana.jpg" alt="Chetana, the teacher" width="420" height="525"><div><p class="eyebrow">Grades 1 to 10 · Sparklet, Megapolis, Hinjawadi and online</p><h1>Make learning fun, keep it strategic</h1>
-<p>Chetana is a computer science engineer who chose teaching. She plans every child's term like a project and teaches each idea until the child can explain it back.</p>
-<div class="row"><a class="btn go" href="#book">Book a free demo class</a><a class="btn" href="#check">Free 10-minute check</a></div></div></section>
-<a class="ckban" href="#check"><span aria-hidden="true">🧭</span><span><b>Where does your child stand?</b><span>Take the free 10-minute starting check. Instant results: strengths and what to work on next.</span></span><em>Start</em></a>
+<section class="hero hasme"><img class="me" src="img/chetana.jpg" alt="Chetana, the teacher" width="420" height="525"><div><p class="eyebrow">${L(0)}</p><h1>${L(1)}</h1>
+<p>${L(2)}</p>
+<div class="row"><a class="btn go" href="#book">${L(3)}</a><a class="btn" href="#check">${L(4)}</a></div></div></section>
+<a class="ckban" href="#check"><span aria-hidden="true">🧭</span><span><b>${L(5)}</b><span>${L(6)}</span></span>${L(7)}</a>
 <section class="grid facts">
-<div class="card fact"><b>Grades 1–10</b><span>State, CBSE and ICSE</span></div>
-<div class="card fact"><b>Languages</b><span>English, Marathi, Hindi</span></div>
-<div class="card fact"><b>Maths &amp; Science</b><span>Concepts, tricks, practice</span></div>
-<div class="card fact"><b>Small batches</b><span>In person or live online</span></div></section>
-<section class="stack"><div class="row"><h2 style="margin-right:auto">Programmes</h2><a class="btn ghost" href="#programmes">All programmes</a></div>
-<div class="grid">${PROGS.slice(0,3).map(progCard).join('')}</div></section>
-<section class="stack"><h2>How she teaches</h2><div class="grid">
-<div class="card step"><b>Concept</b>Each idea is explained from your child's own school book, simply.</div>
-<div class="card step"><b>Practice</b>Oral and written practice in class, then self-study missions at home.</div>
-<div class="card step"><b>Mastery</b>We move on only when your child can explain it back.</div></div>
+<div class="card fact">${L(8)}</div>
+<div class="card fact">${L(9)}</div>
+<div class="card fact">${L(10)}</div>
+<div class="card fact">${L(11)}</div></section>
+${reviews()}
+<section class="stack"><div class="row">${L(12)}</div>
+<div class="grid">${progsL().slice(0,3).map(progCard).join('')}</div></section>
+<section class="stack">${L(13)}<div class="grid">
+<div class="card step">${L(14)}</div>
+<div class="card step">${L(15)}</div>
+<div class="card step">${L(16)}</div></div>
 <div class="grid">
-<div class="card step"><b>Map</b>Syllabus and school test dates become one term roadmap.</div>
-<div class="card step"><b>Chunk</b>Big chapters become small weekly goals.</div>
-<div class="card step"><b>Play</b>Games, stories and challenges keep it fun.</div>
-<div class="card step"><b>Review</b>Each child's own tricky spots are revised before every test.</div></div></section>
-<a class="kwban" href="#world"><span class="kwban-isl" aria-hidden="true">🏝️</span><span><b>Enter Kids’ World</b><span>Spin the island map, pick a character, and play your way through every subject.</span></span></a>
-<section class="card stack"><h2>Free learning library</h2><p>Try the same material Chetana uses in class. Every chapter has a concept to read and practice that checks itself.</p>
+<div class="card step">${L(17)}</div>
+<div class="card step">${L(18)}</div>
+<div class="card step">${L(19)}</div>
+<div class="card step">${L(20)}</div></div></section>
+<a class="kwban" href="#world"><span class="kwban-isl" aria-hidden="true">🏝️</span><span>${L(21)}</span></a>
+<section class="card stack">${L(22)}
 <div class="grid">
-<a class="card lib" href="#phonics"><b>English reading and writing</b><span>7 phonics chapters for Grades 1–2, with games</span></a>
-<a class="card lib" href="#grammar"><b>English grammar</b><span>9 chapters for Grade 3 and up, 50 questions each</span></a>
-<a class="card lib" href="#maths"><b>Maths</b><span>14 chapters for Grade 3 and up, 50 questions each</span></a>
-<a class="card lib" href="#bhasha"><b>Marathi &amp; Hindi</b><span>10 chapters: every letter, barakhadi, joint letters</span></a>
-<a class="card lib" href="#kids"><b>Quick missions</b><span>Tables, earn and owe, Marathi letters, -ed, magic e</span></a></div></section>
+<a class="card lib" href="#phonics">${L(23)}</a>
+<a class="card lib" href="#grammar">${L(24)}</a>
+<a class="card lib" href="#maths">${L(25)}</a>
+<a class="card lib" href="#bhasha">${L(26)}</a>
+<a class="card lib" href="#kids">${L(27)}</a></div></section>
 ${contactBlock()}`}
+
+/* ====== Marathi / Hindi for parent pages ====== */
+let LANG=(()=>{const l=ls.get('ct_lang');return l==='mr'||l==='hi'?l:'en'})();
+const I18N=[["Grades 1 to 10 · Sparklet, Megapolis, Hinjawadi and online", "इयत्ता १ ते १० · स्पार्कलेट, मेगापोलिस, हिंजवडी आणि ऑनलाइन", "कक्षा 1 से 10 · स्पार्कलेट, मेगापोलिस, हिंजवडी और ऑनलाइन"], ["Make learning fun, keep it strategic", "शिकणं आनंदाचं, नियोजन पक्कं", "पढ़ाई मज़ेदार, योजना पक्की"], ["Chetana is a computer science engineer who chose teaching. She plans every child's term like a project and teaches each idea until the child can explain it back.", "चेतना कॉम्प्युटर सायन्स इंजिनिअर आहेत आणि त्यांनी आवडीने शिक्षकी पेशा निवडला. प्रत्येक मुलाच्या सत्राचं नियोजन त्या एखाद्या प्रोजेक्टसारखं करतात, आणि मूल संकल्पना स्वतः समजावून सांगू शकेपर्यंत शिकवतात.", "चेतना कंप्यूटर साइंस इंजीनियर हैं, जिन्होंने शौक से पढ़ाना चुना। वे हर बच्चे के सत्र की योजना एक प्रोजेक्ट की तरह बनाती हैं और तब तक पढ़ाती हैं जब तक बच्चा खुद समझा न सके।"], ["Book a free demo class", "मोफत डेमो वर्ग बुक करा", "मुफ़्त डेमो क्लास बुक करें"], ["Free 10-minute check", "मोफत १० मिनिटांची चाचणी", "मुफ़्त 10 मिनट की जाँच"], ["Where does your child stand?", "तुमचं मूल नेमकं कुठे आहे?", "आपका बच्चा कहाँ खड़ा है?"], ["Take the free 10-minute starting check. Instant results: strengths and what to work on next.", "मोफत १० मिनिटांची सुरुवातीची चाचणी द्या. लगेच निकाल: कशात पक्कं आहे आणि पुढे कशावर काम करायचं.", "मुफ़्त 10 मिनट की शुरुआती जाँच दें। तुरंत नतीजे: बच्चा किसमें मज़बूत है और आगे किस पर काम करना है।"], ["<em>Start</em>", "<em>सुरू करा</em>", "<em>शुरू करें</em>"], ["<b>Grades 1–10</b><span>State, CBSE and ICSE</span>", "<b>इयत्ता १–१०</b><span>स्टेट, CBSE आणि ICSE</span>", "<b>कक्षा 1–10</b><span>स्टेट, CBSE और ICSE</span>"], ["<b>Languages</b><span>English, Marathi, Hindi</span>", "<b>भाषा</b><span>इंग्रजी, मराठी, हिंदी</span>", "<b>भाषाएँ</b><span>अंग्रेज़ी, मराठी, हिंदी</span>"], ["<b>Maths &amp; Science</b><span>Concepts, tricks, practice</span>", "<b>गणित आणि विज्ञान</b><span>संकल्पना, युक्त्या, सराव</span>", "<b>गणित और विज्ञान</b><span>कॉन्सेप्ट, ट्रिक्स, अभ्यास</span>"], ["<b>Small batches</b><span>In person or live online</span>", "<b>लहान बॅच</b><span>प्रत्यक्ष किंवा लाइव्ह ऑनलाइन</span>", "<b>छोटे बैच</b><span>आमने-सामने या लाइव ऑनलाइन</span>"], ["<h2 style=\"margin-right:auto\">Programmes</h2><a class=\"btn ghost\" href=\"#programmes\">All programmes</a>", "<h2 style=\"margin-right:auto\">वर्ग</h2><a class=\"btn ghost\" href=\"#programmes\">सर्व वर्ग</a>", "<h2 style=\"margin-right:auto\">कक्षाएँ</h2><a class=\"btn ghost\" href=\"#programmes\">सभी कक्षाएँ</a>"], ["<h2>How she teaches</h2>", "<h2>त्या कसं शिकवतात</h2>", "<h2>वे कैसे पढ़ाती हैं</h2>"], ["<b>Concept</b>Each idea is explained from your child's own school book, simply.", "<b>संकल्पना</b>प्रत्येक संकल्पना मुलाच्या स्वतःच्या शाळेच्या पुस्तकातून, सोप्या भाषेत समजावली जाते.", "<b>कॉन्सेप्ट</b>हर बात बच्चे की अपनी स्कूल की किताब से, आसान तरीके से समझाई जाती है।"], ["<b>Practice</b>Oral and written practice in class, then self-study missions at home.", "<b>सराव</b>वर्गात तोंडी आणि लेखी सराव, आणि घरी स्वयं-अभ्यासाचे मिशन.", "<b>अभ्यास</b>क्लास में मौखिक और लिखित अभ्यास, फिर घर पर सेल्फ-स्टडी मिशन।"], ["<b>Mastery</b>We move on only when your child can explain it back.", "<b>पक्की तयारी</b>मूल स्वतः समजावून सांगू शकलं, तरच आम्ही पुढे जातो.", "<b>पक्की समझ</b>हम तभी आगे बढ़ते हैं जब बच्चा खुद समझा सके।"], ["<b>Map</b>Syllabus and school test dates become one term roadmap.", "<b>नकाशा</b>अभ्यासक्रम आणि शाळेच्या परीक्षांच्या तारखांवरून सत्राचा एक आराखडा.", "<b>नक्शा</b>सिलेबस और स्कूल टेस्ट की तारीखों से पूरे सत्र का एक रोडमैप।"], ["<b>Chunk</b>Big chapters become small weekly goals.", "<b>छोटे टप्पे</b>मोठे धडे छोट्या साप्ताहिक उद्दिष्टांमध्ये.", "<b>छोटे हिस्से</b>बड़े पाठ छोटे साप्ताहिक लक्ष्यों में।"], ["<b>Play</b>Games, stories and challenges keep it fun.", "<b>खेळ</b>खेळ, गोष्टी आणि आव्हानांमुळे शिकणं मजेदार राहतं.", "<b>खेल</b>खेल, कहानियाँ और चुनौतियाँ पढ़ाई को मज़ेदार रखती हैं।"], ["<b>Review</b>Each child's own tricky spots are revised before every test.", "<b>उजळणी</b>प्रत्येक परीक्षेआधी मुलाच्या स्वतःच्या अवघड जागांची उजळणी.", "<b>दोहराई</b>हर टेस्ट से पहले बच्चे की अपनी कठिन जगहों की दोहराई।"], ["<b>Enter Kids’ World</b><span>Spin the island map, pick a character, and play your way through every subject.</span>", "<b>किड्स वर्ल्डमध्ये चला</b><span>बेटांचा नकाशा फिरवा, आपलं पात्र निवडा आणि खेळत खेळत प्रत्येक विषय शिका.</span>", "<b>किड्स वर्ल्ड में चलें</b><span>द्वीपों का नक्शा घुमाएँ, अपना किरदार चुनें और खेल-खेल में हर विषय सीखें।</span>"], ["<h2>Free learning library</h2><p>Try the same material Chetana uses in class. Every chapter has a concept to read and practice that checks itself.</p>", "<h2>मोफत अभ्यास साहित्य</h2><p>चेतना वर्गात वापरतात तेच साहित्य वापरून पाहा. प्रत्येक धड्यात वाचण्यासाठी संकल्पना आणि आपोआप तपासला जाणारा सराव आहे.</p>", "<h2>मुफ़्त पढ़ाई सामग्री</h2><p>वही सामग्री आज़माएँ जो चेतना क्लास में इस्तेमाल करती हैं। हर पाठ में पढ़ने के लिए कॉन्सेप्ट और अपने-आप जँचने वाला अभ्यास है।</p>"], ["<b>English reading and writing</b><span>7 phonics chapters for Grades 1–2, with games</span>", "<b>इंग्रजी वाचन आणि लेखन</b><span>इयत्ता १–२ साठी फोनिक्सचे ७ धडे, खेळांसह</span>", "<b>अंग्रेज़ी पढ़ना और लिखना</b><span>कक्षा 1–2 के लिए फ़ोनिक्स के 7 पाठ, खेलों के साथ</span>"], ["<b>English grammar</b><span>9 chapters for Grade 3 and up, 50 questions each</span>", "<b>इंग्रजी व्याकरण</b><span>इयत्ता ३ पासून पुढे, ९ धडे, प्रत्येकी ५० प्रश्न</span>", "<b>अंग्रेज़ी व्याकरण</b><span>कक्षा 3 और ऊपर के लिए 9 पाठ, हर पाठ में 50 सवाल</span>"], ["<b>Maths</b><span>14 chapters for Grade 3 and up, 50 questions each</span>", "<b>गणित</b><span>इयत्ता ३ पासून पुढे, १४ धडे, प्रत्येकी ५० प्रश्न</span>", "<b>गणित</b><span>कक्षा 3 और ऊपर के लिए 14 पाठ, हर पाठ में 50 सवाल</span>"], ["<b>Marathi &amp; Hindi</b><span>10 chapters: every letter, barakhadi, joint letters</span>", "<b>मराठी आणि हिंदी</b><span>१० धडे: प्रत्येक अक्षर, बाराखडी, जोडाक्षरे</span>", "<b>मराठी और हिंदी</b><span>10 पाठ: हर अक्षर, बारहखड़ी, संयुक्ताक्षर</span>"], ["<b>Quick missions</b><span>Tables, earn and owe, Marathi letters, -ed, magic e</span>", "<b>झटपट मिशन</b><span>पाढे, कमाई-उधारी, मराठी अक्षरे, -ed, मॅजिक e</span>", "<b>झटपट मिशन</b><span>पहाड़े, कमाई-उधारी, मराठी अक्षर, -ed, मैजिक e</span>"], ["<h1>Programmes</h1><p class=\"muted lead\">Small batches at Sparklet, Megapolis, Hinjawadi, or live online. Simple monthly fees with no long-term lock-in. Ask on WhatsApp for timings and fees.</p>", "<h1>वर्ग</h1><p class=\"muted lead\">स्पार्कलेट, मेगापोलिस, हिंजवडी येथे किंवा लाइव्ह ऑनलाइन लहान बॅच. साधी मासिक फी, दीर्घ मुदतीचं बंधन नाही. वेळा आणि फीसाठी WhatsApp वर विचारा.</p>", "<h1>कक्षाएँ</h1><p class=\"muted lead\">स्पार्कलेट, मेगापोलिस, हिंजवडी में या लाइव ऑनलाइन छोटे बैच। आसान मासिक फ़ीस, लंबी अवधि का कोई बंधन नहीं। समय और फ़ीस के लिए WhatsApp पर पूछें।</p>"], ["<h2>What every family gets</h2>", "<h2>प्रत्येक कुटुंबाला काय मिळतं</h2>", "<h2>हर परिवार को क्या मिलता है</h2>"], ["<b>Free demo class</b><p class=\"muted small\">See the method before you decide.</p>", "<b>मोफत डेमो वर्ग</b><p class=\"muted small\">निर्णय घेण्याआधी पद्धत पाहा.</p>", "<b>मुफ़्त डेमो क्लास</b><p class=\"muted small\">फ़ैसला करने से पहले तरीका देखें।</p>"], ["<b>Starting check</b><p class=\"muted small\">In week one, so we know where your child stands.</p>", "<b>सुरुवातीची चाचणी</b><p class=\"muted small\">पहिल्या आठवड्यात, म्हणजे मूल कुठे आहे ते कळतं.</p>", "<b>शुरुआती जाँच</b><p class=\"muted small\">पहले हफ़्ते में, ताकि पता चले बच्चा कहाँ है।</p>"], ["<b>Progress you can see</b><p class=\"muted small\">Monthly report, stuck-alerts and a pre-exam note.</p>", "<b>दिसणारी प्रगती</b><p class=\"muted small\">मासिक अहवाल, अडचणीची सूचना आणि परीक्षेआधीची टीप.</p>", "<b>दिखने वाली प्रगति</b><p class=\"muted small\">मासिक रिपोर्ट, अटकने पर सूचना और परीक्षा से पहले नोट।</p>"], ["<b>Practice at home</b><p class=\"muted small\">The learning library, free for every student.</p>", "<b>घरी सराव</b><p class=\"muted small\">अभ्यास साहित्य, प्रत्येक विद्यार्थ्यासाठी मोफत.</p>", "<b>घर पर अभ्यास</b><p class=\"muted small\">पढ़ाई सामग्री, हर विद्यार्थी के लिए मुफ़्त।</p>"], ["<h1>About Chetana</h1><p class=\"lead\">An engineer who chose teaching, because she loves it.</p><p class=\"sig\">“Every child can learn anything when the idea is explained the right way.”</p>", "<h1>चेतना यांच्याविषयी</h1><p class=\"lead\">आवडीमुळे शिक्षकी पेशा निवडलेल्या इंजिनिअर.</p><p class=\"sig\">“योग्य पद्धतीने समजावलं, तर प्रत्येक मूल काहीही शिकू शकतं.”</p>", "<h1>चेतना के बारे में</h1><p class=\"lead\">एक इंजीनियर, जिन्होंने पढ़ाने से प्यार के कारण शिक्षण चुना।</p><p class=\"sig\">“सही तरीके से समझाया जाए तो हर बच्चा कुछ भी सीख सकता है।”</p>"], ["<b>Engineer by training</b>Computer Science engineering graduate.", "<b>मूळच्या इंजिनिअर</b>कॉम्प्युटर सायन्स इंजिनिअरिंग पदवीधर.", "<b>प्रशिक्षण से इंजीनियर</b>कंप्यूटर साइंस इंजीनियरिंग स्नातक।"], ["<b>Start-up experience</b>Worked with start-ups before turning to teaching.", "<b>स्टार्ट-अपचा अनुभव</b>शिक्षणाकडे वळण्याआधी स्टार्ट-अप्समध्ये काम केलं.", "<b>स्टार्ट-अप का अनुभव</b>पढ़ाने से पहले स्टार्ट-अप्स के साथ काम किया।"], ["<b>Teaching since the USA</b>Began teaching while living in the USA.", "<b>अमेरिकेपासून शिकवण्याचा अनुभव</b>अमेरिकेत राहत असताना शिकवायला सुरुवात केली.", "<b>अमेरिका से पढ़ाने का अनुभव</b>अमेरिका में रहते हुए पढ़ाना शुरू किया।"], ["<b>Senior-grade teaching</b>Has taught Information Technology to Grade 11 and 12 students.", "<b>वरिष्ठ वर्गांना शिकवण्याचा अनुभव</b>इयत्ता ११ आणि १२ च्या विद्यार्थ्यांना माहिती तंत्रज्ञान शिकवलं आहे.", "<b>बड़ी कक्षाओं को पढ़ाने का अनुभव</b>कक्षा 11 और 12 के विद्यार्थियों को सूचना प्रौद्योगिकी पढ़ाई है।"], ["<span>Her special gift</span><p>From “I’m scared of Marathi” to “Can we read one more page?”</p><small>She turns a child’s fear of English, Marathi or Hindi into real love for the language, and is just as strong in Maths and Science.</small>", "<span>त्यांची खास देणगी</span><p>“मला मराठीची भीती वाटते” पासून “अजून एक पान वाचूया का?” पर्यंत</p><small>इंग्रजी, मराठी किंवा हिंदीची भीती त्या भाषेच्या खऱ्या आवडीत बदलतात, आणि गणित-विज्ञानातही तितक्याच भक्कम आहेत.</small>", "<span>उनकी ख़ास खूबी</span><p>“मुझे मराठी से डर लगता है” से “क्या एक पन्ना और पढ़ें?” तक</p><small>वे बच्चे के अंग्रेज़ी, मराठी या हिंदी के डर को भाषा के सच्चे प्यार में बदल देती हैं, और गणित व विज्ञान में भी उतनी ही मज़बूत हैं।</small>"], ["<h2>Why parents choose her</h2><ul class=\"ticks\"><li>She plans each term like a project, so nothing is left to the last week.</li><li>She teaches from your child’s own book, whatever the school.</li><li>She uses technology where it helps: self-study practice, tracking and clear reports.</li><li>Small batches, so every child is heard.</li></ul>", "<h2>पालक त्यांनाच का निवडतात</h2><ul class=\"ticks\"><li>प्रत्येक सत्राचं नियोजन प्रोजेक्टसारखं, त्यामुळे शेवटच्या आठवड्यासाठी काहीच उरत नाही.</li><li>शाळा कोणतीही असो, मुलाच्या स्वतःच्या पुस्तकातूनच शिकवतात.</li><li>जिथे उपयोग होतो तिथे तंत्रज्ञान: स्वयं-अभ्यास, प्रगतीची नोंद आणि स्पष्ट अहवाल.</li><li>लहान बॅच, त्यामुळे प्रत्येक मुलाचं ऐकलं जातं.</li></ul>", "<h2>माता-पिता उन्हें क्यों चुनते हैं</h2><ul class=\"ticks\"><li>हर सत्र की योजना प्रोजेक्ट की तरह, ताकि आख़िरी हफ़्ते के लिए कुछ न बचे।</li><li>स्कूल कोई भी हो, वे बच्चे की अपनी किताब से पढ़ाती हैं।</li><li>जहाँ काम आए वहाँ तकनीक: सेल्फ-स्टडी, प्रगति का रिकॉर्ड और साफ़ रिपोर्ट।</li><li>छोटे बैच, ताकि हर बच्चे की बात सुनी जाए।</li></ul>"], ["<h2>Book a free demo class</h2><p>Sparklet, Megapolis, Hinjawadi, Pune · Live online classes too</p>", "<h2>मोफत डेमो वर्ग बुक करा</h2><p>स्पार्कलेट, मेगापोलिस, हिंजवडी, पुणे · लाइव्ह ऑनलाइन वर्गही</p>", "<h2>मुफ़्त डेमो क्लास बुक करें</h2><p>स्पार्कलेट, मेगापोलिस, हिंजवडी, पुणे · लाइव ऑनलाइन क्लास भी</p>"], ["<a class=\"btn go\" href=\"#book\">Book a free demo</a><a class=\"btn\" href=\"${WA}\">Message on WhatsApp</a>", "<a class=\"btn go\" href=\"#book\">मोफत डेमो बुक करा</a><a class=\"btn\" href=\"${WA}\">WhatsApp वर संदेश पाठवा</a>", "<a class=\"btn go\" href=\"#book\">मुफ़्त डेमो बुक करें</a><a class=\"btn\" href=\"${WA}\">WhatsApp पर संदेश भेजें</a>"]];
+const NAVL={"mr": ["मुख्य पान", "वर्ग", "ओळख", "शिका", "प्रश्नोत्तरे", "किड्स वर्ल्ड", "डेमो बुक करा"], "hi": ["होम", "कक्षाएँ", "परिचय", "सीखें", "सवाल-जवाब", "किड्स वर्ल्ड", "डेमो बुक करें"]};
+const PROGS_L={"mr": [{"t": "शाळेची शिकवणी", "g": "इयत्ता १–१०", "d": "इयत्ता ८ पर्यंत सर्व विषय, आणि इयत्ता ९ व १० साठी इंग्रजी, मराठी व हिंदी. मुलाच्या स्वतःच्या पाठ्यपुस्तकातून, शाळेच्या परीक्षांच्या तारखांनुसार नियोजन.", "p": ["शाळेच्या अभ्यासक्रमावरून सत्राचा आराखडा", "प्रत्येक घटक चाचणीआधी उजळणी", "दर महिन्याला WhatsApp वर प्रगती अहवाल"]}, {"t": "वाचनात अडखळणारी मुलं", "g": "इयत्ता १–२", "d": "वाचन-लेखन अवघड जाणाऱ्या मुलांसाठी ६ स्तरांचा फोनिक्स कार्यक्रम: आवाज ओळखण्यापासून पूर्ण वाक्य लिहिण्यापर्यंत.", "p": ["१० मिनिटांची सुरुवातीची चाचणी", "पालकांना दिसणारे स्तर-बॅज", "दर महिन्याला वाचनाचा वेग मोजला जातो"]}, {"t": "मराठी आणि हिंदी सोपी", "g": "इयत्ता १–१०", "d": "मराठी नसलेल्या कुटुंबांतील मुलांसाठी आणि दुसऱ्या किंवा तिसऱ्या भाषेची भीती वाटणाऱ्या प्रत्येकासाठी. वाचन, लेखन, व्याकरण आणि बोलणं.", "p": ["सारख्या दिसणाऱ्या अक्षरांसाठी सोप्या युक्त्या", "प्रत्येक वर्गात तोंडी आणि लेखी सराव", "इयत्ता ९–१० साठी बोर्ड परीक्षेची भाषा-तयारी"]}, {"t": "गणितावर प्रभुत्व", "g": "इयत्ता ३ पासून पुढे", "d": "बेरजेपासून अपूर्णांकांपर्यंत, आकडे सोपे करणाऱ्या युक्त्यांसह: २० पर्यंत पाढे, झटपट गणिताच्या युक्त्या, लसावि-मसावि आणि अपूर्णांकांवरील क्रिया.", "p": ["आधी संकल्पना, मग युक्त्या", "रोजच्या जीवनातील शाब्दिक उदाहरणे", "दोन वर्गांच्या मध्ये स्वयं-अभ्यास"]}, {"t": "परीक्षा स्प्रिंट", "g": "जानेवारी–फेब्रुवारी", "d": "अंतिम परीक्षेआधी छोटा उजळणी वर्ग, प्रत्येक मुलाच्या स्वतःच्या चुकांच्या यादीवरून, म्हणजे वेळ जिथे गरज आहे तिथेच जातो.", "p": ["शाळेच्या पद्धतीचे वेळ लावून सराव पेपर", "प्रत्येक मुलासाठी स्वतंत्र उजळणी पत्रक", "परीक्षेआधी पालकांना सूचना"]}, {"t": "उन्हाळी पूल वर्ग", "g": "एप्रिल–मे", "d": "पुढच्या इयत्तेची तयारी: या वर्षातील कमतरता भरून काढा आणि पुढच्या वर्षाच्या पहिल्या धड्यांची ओळख करून घ्या.", "p": ["सुरुवातीला कमतरता तपासणी", "वाचन आणि पाढ्यांना चालना", "पुढच्या वर्षाच्या पुस्तकाची ओळख"]}], "hi": [{"t": "स्कूल ट्यूशन", "g": "कक्षा 1–10", "d": "कक्षा 8 तक सभी विषय, और कक्षा 9 व 10 के लिए अंग्रेज़ी, मराठी और हिंदी। बच्चे की अपनी पाठ्यपुस्तक से, स्कूल टेस्ट की तारीखों के हिसाब से योजना।", "p": ["स्कूल सिलेबस से सत्र का रोडमैप", "हर यूनिट टेस्ट से पहले दोहराई", "हर महीने WhatsApp पर प्रगति रिपोर्ट"]}, {"t": "पढ़ने में कठिनाई वाले बच्चे", "g": "कक्षा 1–2", "d": "जिन बच्चों को पढ़ना-लिखना कठिन लगता है, उनके लिए 6 स्तरों का फ़ोनिक्स कार्यक्रम: आवाज़ें पहचानने से पूरे वाक्य लिखने तक।", "p": ["10 मिनट की शुरुआती जाँच", "माता-पिता को दिखने वाले स्तर-बैज", "हर महीने पढ़ने की गति मापी जाती है"]}, {"t": "मराठी और हिंदी आसान", "g": "कक्षा 1–10", "d": "गैर-मराठी परिवारों के बच्चों और दूसरी या तीसरी भाषा से डरने वाले हर बच्चे के लिए। पढ़ना, लिखना, व्याकरण और बोलना।", "p": ["एक जैसे दिखने वाले अक्षरों के लिए आसान ट्रिक्स", "हर क्लास में मौखिक और लिखित अभ्यास", "कक्षा 9–10 के लिए बोर्ड परीक्षा की भाषा-तैयारी"]}, {"t": "गणित में महारत", "g": "कक्षा 3 और ऊपर", "d": "जोड़ से भिन्न तक, उन ट्रिक्स के साथ जो अंकों को आसान बनाती हैं: 20 तक पहाड़े, तेज़ गणना की ट्रिक्स, LCM और HCF, और भिन्नों की संक्रियाएँ।", "p": ["पहले कॉन्सेप्ट, फिर ट्रिक्स", "रोज़मर्रा के शाब्दिक सवाल", "दो क्लास के बीच सेल्फ-स्टडी अभ्यास"]}, {"t": "परीक्षा स्प्रिंट", "g": "जनवरी–फ़रवरी", "d": "फ़ाइनल परीक्षा से पहले छोटा रिवीज़न बैच, हर बच्चे की अपनी गलतियों की सूची से बना, ताकि समय वहीं लगे जहाँ ज़रूरत है।", "p": ["स्कूल के फ़ॉर्मैट में समयबद्ध मॉक पेपर", "हर बच्चे के लिए अलग रिवीज़न शीट", "परीक्षा से पहले माता-पिता को नोट"]}, {"t": "समर ब्रिज", "g": "अप्रैल–मई", "d": "अगली कक्षा की तैयारी: इस साल की कमियाँ दूर करें और अगले साल के पहले पाठों की झलक लें।", "p": ["शुरुआत में कमियों की जाँच", "पढ़ने और पहाड़ों पर ज़ोर", "अगले साल की किताब की झलक"]}]};
+function L(i){const r=I18N[i];return LANG==='mr'?r[1]:LANG==='hi'?r[2]:r[0]}
+const progsL=()=>LANG==='en'?PROGS:PROGS_L[LANG];
+function applyLang(){document.documentElement.lang=LANG==='en'?'en':LANG;const a=[...document.querySelectorAll('.top nav a')];
+  if(a.length&&!a[0].dataset.en)a.forEach(x=>{x.dataset.en=x.textContent});a.forEach((x,i)=>{x.textContent=LANG==='en'?x.dataset.en:NAVL[LANG][i]});
+  document.querySelectorAll('[data-act=lang]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.l===LANG)))}
+
+/* ====== Marathi / Hindi: FAQ, booking, starting check, privacy ====== */
+const TRT=[["<h1>Questions parents ask</h1><p class=\"muted lead\">Can’t find your answer? Ask on WhatsApp or book a free demo.</p>", "<h1>पालकांचे प्रश्न</h1><p class=\"muted lead\">उत्तर सापडलं नाही? WhatsApp वर विचारा किंवा मोफत डेमो बुक करा.</p>", "<h1>माता-पिता के सवाल</h1><p class=\"muted lead\">जवाब नहीं मिला? WhatsApp पर पूछें या मुफ़्त डेमो बुक करें।</p>"], ["<h1>Almost done</h1><p>Tap the button to send these details to Chetana on WhatsApp. She will reply to fix a demo time.</p>", "<h1>जवळजवळ झालं</h1><p>ही माहिती WhatsApp वर चेतना यांना पाठवण्यासाठी बटण दाबा. डेमोची वेळ ठरवण्यासाठी त्या उत्तर देतील.</p>", "<h1>लगभग हो गया</h1><p>यह जानकारी WhatsApp पर चेतना को भेजने के लिए बटन दबाएँ। डेमो का समय तय करने के लिए वे जवाब देंगी।</p>"], [">Send on WhatsApp</a>", ">WhatsApp वर पाठवा</a>", ">WhatsApp पर भेजें</a>"], [">Copy text</button>", ">मजकूर कॉपी करा</button>", ">टेक्स्ट कॉपी करें</button>"], ["<p class=\"small muted\">WhatsApp not opening? Copy the text and send it to 97301 95429.</p><button class=\"btn ghost\" data-act=\"bedit\">Change details</button>", "<p class=\"small muted\">WhatsApp उघडत नाही? मजकूर कॉपी करून 97301 95429 वर पाठवा.</p><button class=\"btn ghost\" data-act=\"bedit\">माहिती बदला</button>", "<p class=\"small muted\">WhatsApp नहीं खुल रहा? टेक्स्ट कॉपी करके 97301 95429 पर भेजें।</p><button class=\"btn ghost\" data-act=\"bedit\">जानकारी बदलें</button>"], ["<h1>Book a free demo class</h1><p class=\"muted lead\">Fill in a few details. They go to Chetana on WhatsApp and into her private enquiry list, so she can follow up. Nothing else is done with them (see <a href=\"#privacy\">Privacy</a>).</p>", "<h1>मोफत डेमो वर्ग बुक करा</h1><p class=\"muted lead\">थोडी माहिती भरा. ती WhatsApp वर चेतना यांना आणि त्यांच्या खाजगी चौकशी यादीत जाते, म्हणजे त्या संपर्क करू शकतील. तिचा इतर कोणताही वापर होत नाही (<a href=\"#privacy\">गोपनीयता</a> पाहा).</p>", "<h1>मुफ़्त डेमो क्लास बुक करें</h1><p class=\"muted lead\">कुछ जानकारी भरें। यह WhatsApp पर चेतना को और उनकी निजी पूछताछ सूची में जाती है, ताकि वे संपर्क कर सकें। इसका और कोई उपयोग नहीं होता (<a href=\"#privacy\">गोपनीयता</a> देखें)।</p>"], ["<label>Parent’s name<input", "<label>पालकांचे नाव<input", "<label>माता-पिता का नाम<input"], ["<label>Child’s first name<input", "<label>मुलाचे पहिले नाव<input", "<label>बच्चे का पहला नाम<input"], ["<label>Grade<select id=\"bk-grade\"><option value=\"\">Choose</option>", "<label>इयत्ता<select id=\"bk-grade\"><option value=\"\">निवडा</option>", "<label>कक्षा<select id=\"bk-grade\"><option value=\"\">चुनें</option>"], ["<label>Board<select id=\"bk-board\"><option>State</option><option>CBSE</option><option>ICSE</option><option>Not sure</option></select></label>", "<label>बोर्ड<select id=\"bk-board\"><option value=\"State\">स्टेट</option><option>CBSE</option><option>ICSE</option><option value=\"Not sure\">माहीत नाही</option></select></label>", "<label>बोर्ड<select id=\"bk-board\"><option value=\"State\">स्टेट</option><option>CBSE</option><option>ICSE</option><option value=\"Not sure\">पता नहीं</option></select></label>"], ["<label>School<input", "<label>शाळा<input", "<label>स्कूल<input"], ["<legend>Subjects</legend>", "<legend>विषय</legend>", "<legend>विषय</legend>"], ["<legend>Class mode</legend>", "<legend>वर्ग कसा हवा</legend>", "<legend>क्लास कैसे</legend>"], ["checked> In person at Sparklet</label>", "checked> स्पार्कलेट येथे प्रत्यक्ष</label>", "checked> स्पार्कलेट में आमने-सामने</label>"], ["value=\"Online\"> Online</label>", "value=\"Online\"> ऑनलाइन</label>", "value=\"Online\"> ऑनलाइन</label>"], ["value=\"Either\"> Either</label>", "value=\"Either\"> दोन्हीपैकी कोणतेही</label>", "value=\"Either\"> कोई भी</label>"], ["<label>Best time for the demo<select id=\"bk-time\"><option>Weekday evening</option><option>Saturday</option><option>Sunday</option><option>Any time</option></select></label>", "<label>डेमोसाठी सोयीची वेळ<select id=\"bk-time\"><option value=\"Weekday evening\">आठवड्यातील संध्याकाळ</option><option value=\"Saturday\">शनिवार</option><option value=\"Sunday\">रविवार</option><option value=\"Any time\">कधीही</option></select></label>", "<label>डेमो के लिए सही समय<select id=\"bk-time\"><option value=\"Weekday evening\">हफ़्ते के दिन की शाम</option><option value=\"Saturday\">शनिवार</option><option value=\"Sunday\">रविवार</option><option value=\"Any time\">कभी भी</option></select></label>"], ["<label>Your WhatsApp number (optional)<input", "<label>तुमचा WhatsApp नंबर (ऐच्छिक)<input", "<label>आपका WhatsApp नंबर (वैकल्पिक)<input"], ["<label>Anything Chetana should know?<textarea id=\"bk-note\" rows=\"3\" maxlength=\"300\" placeholder=\"e.g. struggles with Marathi reading, unit test next month\"></textarea></label>", "<label>चेतना यांना आणखी काही सांगायचे आहे?<textarea id=\"bk-note\" rows=\"3\" maxlength=\"300\" placeholder=\"उदा. मराठी वाचनात अडचण, पुढच्या महिन्यात घटक चाचणी\"></textarea></label>", "<label>चेतना को और कुछ बताना है?<textarea id=\"bk-note\" rows=\"3\" maxlength=\"300\" placeholder=\"जैसे मराठी पढ़ने में दिक्कत, अगले महीने यूनिट टेस्ट\"></textarea></label>"], ["<button class=\"btn go\">Continue</button></div></form>", "<button class=\"btn go\">पुढे</button></div></form>", "<button class=\"btn go\">आगे</button></div></form>"], ["<h1>Free starting check</h1>", "<h1>मोफत सुरुवातीची चाचणी</h1>", "<h1>मुफ़्त शुरुआती जाँच</h1>"], ["<p>About 10 minutes. Your child answers short questions on their own, and you get a clear picture straight away: what they are strong in, and what to work on next.</p>", "<p>सुमारे १० मिनिटे. मूल स्वतः छोटे प्रश्न सोडवते, आणि लगेच स्पष्ट चित्र मिळते: कशात पक्कं आहे आणि पुढे कशावर काम करायचं.</p>", "<p>लगभग 10 मिनट। बच्चा खुद छोटे सवाल हल करता है, और तुरंत साफ़ तस्वीर मिलती है: किसमें मज़बूत है और आगे किस पर काम करना है।</p>"], ["<li>No sign-up, nothing to pay</li><li>Results stay on this device</li><li>Send the results to Chetana in one tap if you want her advice</li>", "<li>नोंदणी नाही, पैसे नाहीत</li><li>निकाल याच डिव्हाइसवर राहतात</li><li>सल्ला हवा असल्यास एका टॅपमध्ये निकाल चेतना यांना पाठवा</li>", "<li>कोई रजिस्ट्रेशन नहीं, कोई पैसा नहीं</li><li>नतीजे इसी डिवाइस पर रहते हैं</li><li>सलाह चाहिए तो एक टैप में नतीजे चेतना को भेजें</li>"], ["<span>Child’s first name (optional)</span>", "<span>मुलाचे पहिले नाव (ऐच्छिक)</span>", "<span>बच्चे का पहला नाम (वैकल्पिक)</span>"], ["<legend>Which class is your child in?</legend>", "<legend>तुमचे मूल कोणत्या इयत्तेत आहे?</legend>", "<legend>आपका बच्चा किस कक्षा में है?</legend>"], ["> Also check Marathi/Hindi reading</label>", "> मराठी/हिंदी वाचनही तपासा</label>", "> मराठी/हिंदी पढ़ना भी जाँचें</label>"], ["Tip: sit with your child, read questions aloud if needed, but let them choose the answer. “I don’t know yet” is a fine answer.", "टीप: मुलासोबत बसा, गरज असल्यास प्रश्न मोठ्याने वाचा, पण उत्तर मुलालाच निवडू द्या. “अजून माहीत नाही” हे उत्तरही चालते.", "सुझाव: बच्चे के साथ बैठें, ज़रूरत हो तो सवाल ज़ोर से पढ़ें, पर जवाब बच्चे को ही चुनने दें। “अभी नहीं पता” भी ठीक जवाब है।"], [">Start the check</button>", ">चाचणी सुरू करा</button>", ">जाँच शुरू करें</button>"], ["<p class=\"muted\">This is a quick snapshot from ${max} questions, not an exam. It shows where to start.</p>", "<p class=\"muted\">हा ${max} प्रश्नांवरून घेतलेला झटपट अंदाज आहे, परीक्षा नाही. सुरुवात कुठून करायची ते यातून कळतं.</p>", "<p class=\"muted\">यह ${max} सवालों से ली गई झलक है, परीक्षा नहीं। इससे पता चलता है कि शुरुआत कहाँ से करें।</p>"], ["<h2>🌟 Strong</h2>", "<h2>🌟 पक्कं</h2>", "<h2>🌟 मज़बूत</h2>"], ["<h2>🌱 Getting there</h2>", "<h2>🌱 प्रगती सुरू</h2>", "<h2>🌱 सुधार हो रहा है</h2>"], ["<h2>🎯 Start here</h2>", "<h2>🎯 इथून सुरुवात</h2>", "<h2>🎯 यहाँ से शुरू करें</h2>"], ["<h2>Want a plan from Chetana?</h2><p>Send these results on WhatsApp. She will suggest where to begin and fix a free demo class.</p>", "<h2>चेतना यांच्याकडून नियोजन हवंय?</h2><p>हे निकाल WhatsApp वर पाठवा. कुठून सुरुवात करायची ते त्या सुचवतील आणि मोफत डेमो वर्ग ठरवतील.</p>", "<h2>चेतना से योजना चाहिए?</h2><p>ये नतीजे WhatsApp पर भेजें। वे बताएँगी कि कहाँ से शुरू करें और मुफ़्त डेमो क्लास तय करेंगी।</p>"], ["data-lead=\"check\">Send results on WhatsApp</a>", "data-lead=\"check\">निकाल WhatsApp वर पाठवा</a>", "data-lead=\"check\">नतीजे WhatsApp पर भेजें</a>"]];
+function TRL(i){const r=TRT[i];return LANG==='mr'?r[1]:LANG==='hi'?r[2]:r[0]}
+const SUBJ_L={"mr": ["इंग्रजी", "मराठी", "हिंदी", "गणित", "विज्ञान", "सर्व विषय", "वाचनासाठी मदत (इयत्ता १–२)"], "hi": ["अंग्रेज़ी", "मराठी", "हिंदी", "गणित", "विज्ञान", "सभी विषय", "पढ़ने में मदद (कक्षा 1–2)"]};
+const FAQ_L={"mr": [["वर्गांविषयी", [["कोणत्या इयत्ता आणि बोर्डसाठी शिकवता?", "इयत्ता १ ते १०, स्टेट, CBSE आणि ICSE बोर्डसाठी. इयत्ता ८ पर्यंत सर्व विषय, आणि इयत्ता ९ व १० साठी इंग्रजी, मराठी आणि हिंदी."], ["विद्यार्थी कोणत्या शाळांमधून येतात?", "हिंजवडी परिसरातील अनेक शाळांमधून. चेतना प्रत्येक मुलाच्या स्वतःच्या शाळेच्या पाठ्यपुस्तकातून शिकवतात आणि त्या शाळेच्या परीक्षांच्या तारखांनुसार उजळणीचं नियोजन करतात."], ["बॅच किती मोठी असते?", "साधारण ६ ते ८ मुलांची लहान बॅच, शक्यतो शाळा, इयत्ता आणि विषयानुसार. विनंतीवरून एकास-एक वर्गही उपलब्ध."], ["वर्ग कुठे होतात?", "स्पार्कलेट, मेगापोलिस, हिंजवडी, पुणे येथे प्रत्यक्ष, किंवा Google Meet वर लाइव्ह ऑनलाइन."], ["एक वर्ग किती वेळाचा असतो?", "साधारण एक तास: झटपट उजळणी, नवीन संकल्पना, मग तोंडी आणि लेखी सराव."]]], ["शिकवणं आणि प्रगती", [["इतर शिकवण्यांपेक्षा हे वेगळं कसं?", "प्रत्येक सत्राचं नियोजन प्रोजेक्टसारखं होतं: अभ्यासक्रम आणि शाळेच्या परीक्षांच्या तारखांवरून आराखडा, धड्यांचे साप्ताहिक टप्पे, आणि प्रत्येक परीक्षेआधी मुलाच्या स्वतःच्या चुकांची उजळणी. मूल संकल्पना स्वतः समजावून सांगू शकलं तरच पुढे जातो."], ["माझ्या मुलाची प्रगती होतेय हे कसं कळेल?", "पहिल्या आठवड्यात सुरुवातीची चाचणी, एखाद्या विषयात अडकल्यास लगेच संदेश, प्रत्येक शाळेच्या परीक्षेआधी टीप, आणि दर महिन्याला WhatsApp वर प्रगती अहवाल."], ["माझं मूल मराठी किंवा हिंदीत कच्चं आहे आणि घरी ती भाषा बोलली जात नाही. मदत होईल का?", "हो. ही चेतना यांची खासियत आहे. त्या अक्षरांपासून सुरुवात करून वाचन, लेखन आणि बोलण्यापर्यंत नेतात, त्यामुळे तुम्हाला घरी शिकवावं लागत नाही."], ["अभ्यास साहित्य (learning library) म्हणजे काय?", "या वेबसाइटवरील मोफत सराव: इंग्रजी वाचन आणि व्याकरण, गणित, मराठी आणि हिंदी, 3D खेळणी आणि किड्स वर्ल्ड. विद्यार्थी आपलं पहिलं नाव आणि PIN टाइप करतात, त्यामुळे त्यांनी काय सराव केला ते चेतना पाहू शकतात."]]], ["ऑनलाइन वर्ग", [["ऑनलाइन वर्गांसाठी काय लागतं?", "कॅमेरा असलेला लॅपटॉप, टॅबलेट किंवा फोन, स्थिर इंटरनेट आणि शांत जागा. गृहपाठ WhatsApp वर फोटो म्हणून पाठवला जातो."], ["ऑनलाइन वर्ग रेकॉर्ड होतात का?", "फक्त तुमच्या लेखी परवानगीने, आणि फक्त चेतना यांना नोट्स आणि प्रगतीसाठी. रेकॉर्डिंग थोडाच काळ ठेवलं जातं आणि कधीही कोणाला दिलं जात नाही."]]], ["फी आणि प्रवेश", [["फी कशी असते?", "साधी मासिक फी, प्रत्येक महिन्याच्या सुरुवातीला. तुमच्या मुलाच्या इयत्ता आणि विषयांसाठी फी WhatsApp वर विचारा."], ["दीर्घ मुदतीचं बंधन आहे का?", "नाही. एक महिन्याची सूचना देऊन थांबवू शकता, आणि एका महिन्यापेक्षा जास्त आगाऊ फी घेतली जात नाही."], ["मूल एखादा वर्ग चुकवलं तर?", "चेतना छोटी उजळणी पाठवतात किंवा ऑनलाइन भरपाई वर्ग ठेवतात. चुकलेल्या वर्गांची फी परत दिली जात नाही."], ["सुरुवात कशी करायची?", "मोफत डेमो वर्ग बुक करा. चेतना तुमच्या मुलाला भेटतील, छोटी सुरुवातीची चाचणी घेतील आणि योग्य बॅच सुचवतील."]]]], "hi": [["कक्षाओं के बारे में", [["किन कक्षाओं और बोर्ड के लिए पढ़ाती हैं?", "कक्षा 1 से 10, स्टेट, CBSE और ICSE बोर्ड के लिए। कक्षा 8 तक सभी विषय, और कक्षा 9 व 10 के लिए अंग्रेज़ी, मराठी और हिंदी।"], ["विद्यार्थी किन स्कूलों से आते हैं?", "हिंजवडी के आसपास के कई स्कूलों से। चेतना हर बच्चे की अपनी स्कूल की पाठ्यपुस्तक से पढ़ाती हैं और उस स्कूल की टेस्ट तारीखों के हिसाब से दोहराई की योजना बनाती हैं।"], ["बैच कितना बड़ा होता है?", "लगभग 6 से 8 बच्चों का छोटा बैच, जहाँ तक हो सके स्कूल, कक्षा और विषय के हिसाब से। अनुरोध पर वन-टू-वन क्लास भी।"], ["क्लास कहाँ होती है?", "स्पार्कलेट, मेगापोलिस, हिंजवडी, पुणे में आमने-सामने, या Google Meet पर लाइव ऑनलाइन।"], ["एक क्लास कितनी लंबी होती है?", "लगभग एक घंटा: छोटी दोहराई, नया कॉन्सेप्ट, फिर मौखिक और लिखित अभ्यास।"]]], ["पढ़ाई और प्रगति", [["यह दूसरी ट्यूशन से अलग कैसे है?", "हर सत्र की योजना प्रोजेक्ट की तरह बनती है: सिलेबस और स्कूल टेस्ट की तारीखों से रोडमैप, पाठों के साप्ताहिक लक्ष्य, और हर टेस्ट से पहले बच्चे की अपनी गलतियों की दोहराई। बच्चा तभी आगे बढ़ता है जब वह खुद समझा सके।"], ["मुझे कैसे पता चलेगा कि बच्चा सुधर रहा है?", "पहले हफ़्ते में शुरुआती जाँच, किसी विषय में अटकने पर तुरंत संदेश, हर स्कूल टेस्ट से पहले नोट, और हर महीने WhatsApp पर प्रगति रिपोर्ट।"], ["मेरा बच्चा मराठी या हिंदी में कमज़ोर है और घर पर वह भाषा नहीं बोली जाती। क्या मदद मिलेगी?", "हाँ। यह चेतना की ख़ासियत है। वे अक्षरों से शुरू करके पढ़ना, लिखना और बोलना सिखाती हैं, इसलिए आपको घर पर सिखाने की ज़रूरत नहीं।"], ["लर्निंग लाइब्रेरी क्या है?", "इस वेबसाइट पर मुफ़्त अभ्यास: अंग्रेज़ी पढ़ना और व्याकरण, गणित, मराठी और हिंदी, 3D खिलौने और किड्स वर्ल्ड। विद्यार्थी अपना पहला नाम और PIN टाइप करते हैं, ताकि चेतना देख सकें कि उन्होंने क्या अभ्यास किया।"]]], ["ऑनलाइन क्लास", [["ऑनलाइन क्लास के लिए क्या चाहिए?", "कैमरे वाला लैपटॉप, टैबलेट या फ़ोन, स्थिर इंटरनेट और शांत कोना। होमवर्क WhatsApp पर फ़ोटो के रूप में भेजा जाता है।"], ["क्या ऑनलाइन क्लास रिकॉर्ड होती है?", "सिर्फ़ आपकी लिखित अनुमति से, और सिर्फ़ चेतना के नोट्स और प्रगति के लिए। रिकॉर्डिंग थोड़े समय रखी जाती है और कभी किसी को नहीं दी जाती।"]]], ["फ़ीस और दाख़िला", [["फ़ीस कैसे होती है?", "आसान मासिक फ़ीस, हर महीने की शुरुआत में। अपने बच्चे की कक्षा और विषयों की फ़ीस WhatsApp पर पूछें।"], ["क्या लंबी अवधि का बंधन है?", "नहीं। एक महीने की सूचना देकर बंद कर सकते हैं, और एक महीने से ज़्यादा की अग्रिम फ़ीस नहीं ली जाती।"], ["अगर बच्चा कोई क्लास छोड़ दे तो?", "चेतना छोटी दोहराई भेजती हैं या ऑनलाइन भरपाई क्लास रखती हैं। छूटी हुई क्लास की फ़ीस वापस नहीं होती।"], ["शुरुआत कैसे करें?", "मुफ़्त डेमो क्लास बुक करें। चेतना आपके बच्चे से मिलेंगी, छोटी शुरुआती जाँच करेंगी और सही बैच सुझाएँगी।"]]]]};
+const PRIV_L={"mr": "<section class=\"stack\"><h1>गोपनीयता</h1><p class=\"lead\">थोडक्यात आणि सोप्या भाषेत: आम्ही काय ठेवतो, का, आणि ते कसं काढून टाकायचं.</p></section>\n<section class=\"card stack prose\">\n<h2>तुमच्या मुलाविषयी आम्ही काय ठेवतो</h2><p>चांगलं शिकवण्यासाठी आवश्यक तेवढंच: <b>पहिलं नाव</b>, इयत्ता, बोर्ड आणि शाळा, बॅच, उपस्थिती, वर्गातील नोंदी, या वेबसाइटवरील सरावाचे गुण आणि फी भरणा. पालकांसाठी: तुमचं नाव आणि WhatsApp नंबर, अहवाल आणि आठवण पाठवण्यासाठी.</p>\n<p>आम्ही मुलांची आडनावं, मुलांचे फोटो किंवा व्हिडिओ, घरचा पत्ता, आधार किंवा कोणतेही ओळखपत्र क्रमांक, किंवा बँक किंवा कार्डची माहिती <b>ठेवत नाही</b>.</p>\n<h2>का</h2><p>तुमच्या मुलाच्या अभ्यासाचं नियोजन, प्रगतीची नोंद, मासिक अहवाल आणि फीचं व्यवस्थापन करण्यासाठी. एवढंच. तुमची माहिती आम्ही कधीही विकत नाही, कोणाला देत नाही किंवा जाहिरातीसाठी वापरत नाही, आणि जाहिरात किंवा ट्रॅकिंग कुकीज वापरत नाही.</p>\n<h2>कोण पाहू शकतं</h2><p>फक्त चेतना, आणि त्यांनी जोडलेले कोणतेही शिक्षक, जे फक्त स्वतःच्या बॅचची उपस्थिती, नोंदी आणि सराव पाहू शकतात (पालकांचे नंबर किंवा फी कधीच नाही). नोंदी चेतना यांच्या खात्यातील खाजगी Google Sheet मध्ये, 2-step verification ने सुरक्षित ठेवल्या जातात. मुलाच्या स्वतःच्या लॉगिनमध्ये (पहिलं नाव आणि ४ अंकी PIN) फक्त त्या मुलाचे सरावाचे तारे आणि मिशन दिसतात.</p>\n<h2>लॉगिन न करता सराव</h2><p>मुलं लॉगिन न करता अभ्यास साहित्य, किड्स वर्ल्ड, पुणे राइड आणि सुरुवातीची चाचणी वापरू शकतात. ते निकाल तुमच्याच डिव्हाइसवर राहतात. तुम्ही सुरुवातीच्या चाचणीचे निकाल चेतना यांना पाठवले किंवा डेमो बुक केला, तर ती माहिती पाठपुराव्यासाठी त्यांच्या खाजगी चौकशी यादीतही जाते.</p>\n<h2>तुमची संमती</h2><p>पालक किंवा पालकत्व असलेल्या व्यक्तीने संमती दिल्यानंतरच आम्ही मुलाची नोंद करतो. तुम्ही कधीही संमती मागे घेऊ शकता.</p>\n<h2>पाहा, दुरुस्त करा किंवा काढून टाका</h2><p>आमच्याकडे काय आहे ते पाहण्यासाठी, दुरुस्त करण्यासाठी किंवा काढून टाकण्यासाठी चेतना यांना WhatsApp वर संदेश पाठवा. विनंतीनंतर ७ दिवसांत मुलाची नोंद काढून टाकली जाते. १२ महिन्यांपूर्वी सोडून गेलेल्या मुलांच्या नोंदी (हिशोबासाठी फीच्या नोंदी सोडून), आणि १२ महिन्यांत वर्गात न रूपांतरित झालेल्या चौकशा आपोआप काढून टाकल्या जातात.</p>\n<h2>काही चुकलं तर</h2><p>तुमच्या मुलाची माहिती चुकून कोणी पाहिली असं आढळलं, तर आम्ही तुम्हाला लगेच कळवू आणि त्यावर काय करत आहोत ते सांगू.</p>\n<p class=\"small muted\">शेवटचा बदल: नोव्हेंबर २०२६. काही फरक आढळल्यास इंग्रजी आवृत्ती ग्राह्य.</p>", "hi": "<section class=\"stack\"><h1>गोपनीयता</h1><p class=\"lead\">छोटा और सीधा: हम क्या रखते हैं, क्यों, और उसे कैसे हटवाएँ।</p></section>\n<section class=\"card stack prose\">\n<h2>आपके बच्चे के बारे में हम क्या रखते हैं</h2><p>अच्छी तरह पढ़ाने के लिए जितना ज़रूरी: <b>पहला नाम</b>, कक्षा, बोर्ड और स्कूल, बैच, हाज़िरी, क्लास के नोट्स, इस वेबसाइट पर अभ्यास के अंक और फ़ीस का भुगतान। माता-पिता के लिए: आपका नाम और WhatsApp नंबर, रिपोर्ट और याद दिलाने के लिए।</p>\n<p>हम बच्चों के उपनाम, बच्चों की फ़ोटो या वीडियो, घर का पता, आधार या कोई भी पहचान-पत्र नंबर, या बैंक या कार्ड की जानकारी <b>नहीं रखते</b>।</p>\n<h2>क्यों</h2><p>आपके बच्चे की पढ़ाई की योजना, प्रगति का रिकॉर्ड, मासिक रिपोर्ट और फ़ीस के प्रबंधन के लिए। बस इतना ही। हम आपकी जानकारी कभी बेचते नहीं, किसी को देते नहीं, विज्ञापन के लिए इस्तेमाल नहीं करते, और विज्ञापन या ट्रैकिंग कुकीज़ का उपयोग नहीं करते।</p>\n<h2>कौन देख सकता है</h2><p>सिर्फ़ चेतना, और उनके जोड़े हुए कोई भी शिक्षक, जो सिर्फ़ अपने बैच की हाज़िरी, नोट्स और अभ्यास देख सकते हैं (माता-पिता के नंबर या फ़ीस कभी नहीं)। रिकॉर्ड चेतना के खाते की निजी Google Sheet में, 2-step verification से सुरक्षित रखे जाते हैं। बच्चे के अपने लॉगिन में (पहला नाम और 4 अंकों का PIN) सिर्फ़ उसी बच्चे के अभ्यास के सितारे और मिशन दिखते हैं।</p>\n<h2>बिना लॉगिन के अभ्यास</h2><p>बच्चे बिना लॉगिन के पढ़ाई सामग्री, किड्स वर्ल्ड, पुणे राइड और शुरुआती जाँच इस्तेमाल कर सकते हैं। वे नतीजे आपके ही डिवाइस पर रहते हैं। अगर आप शुरुआती जाँच के नतीजे चेतना को भेजते हैं या डेमो बुक करते हैं, तो वह जानकारी संपर्क के लिए उनकी निजी पूछताछ सूची में भी जाती है।</p>\n<h2>आपकी सहमति</h2><p>हम किसी बच्चे को तभी जोड़ते हैं जब माता-पिता या अभिभावक सहमति दें। आप कभी भी सहमति वापस ले सकते हैं।</p>\n<h2>देखें, सुधारें या हटवाएँ</h2><p>हमारे पास क्या है यह देखने, सुधारने या हटवाने के लिए चेतना को WhatsApp पर संदेश भेजें। अनुरोध के 7 दिनों के अंदर बच्चे का रिकॉर्ड हटा दिया जाता है। 12 महीने से पहले छोड़ चुके बच्चों के रिकॉर्ड (हिसाब के लिए फ़ीस की प्रविष्टियों को छोड़कर), और 12 महीनों में क्लास में न बदली पूछताछ अपने-आप हट जाती हैं।</p>\n<h2>अगर कुछ गलत हो</h2><p>अगर हमें पता चले कि आपके बच्चे की जानकारी किसी ऐसे व्यक्ति ने देखी जिसे नहीं देखनी चाहिए थी, तो हम आपको तुरंत बताएँगे और समझाएँगे कि हम क्या कर रहे हैं।</p>\n<p class=\"small muted\">आख़िरी बदलाव: नवंबर 2026। किसी अंतर की स्थिति में अंग्रेज़ी संस्करण मान्य होगा।</p>"};
 const PROGS=[
  {t:'School tuition',g:'Grades 1–10',d:'All subjects up to Grade 8, and English, Marathi and Hindi for Grades 9 and 10. Taught from your child’s own textbook and planned around school test dates.',p:['Term roadmap from the school syllabus','Revision before every unit test','Monthly progress report on WhatsApp']},
  {t:'Struggling readers',g:'Grades 1–2',d:'A 6-level phonics programme for children who find reading and writing hard, from hearing sounds to writing full sentences.',p:['10-minute starting check','Level badges parents can see','Reading speed measured every month']},
@@ -125,22 +144,22 @@ const PROGS=[
  {t:'Exam sprint',g:'January–February',d:'A short revision batch before final exams, built from each child’s own mistake bank so time goes where it is needed.',p:['Timed mock papers in school format','Personal revision sheet per child','Pre-exam note to parents']},
  {t:'Summer bridge',g:'April–May',d:'Get ready for the next grade: close the gaps from this year and preview next year’s first chapters.',p:['Gap check at the start','Reading and tables boost','Preview of next year’s book']}];
 function progCard(x){return `<div class="card stack prog"><span class="pill">${x.g}</span><h3>${x.t}</h3><p>${x.d}</p><ul>${x.p.map(i=>`<li>${i}</li>`).join('')}</ul></div>`}
-function programmes(){return `<section class="stack"><h1>Programmes</h1><p class="muted lead">Small batches at Sparklet, Megapolis, Hinjawadi, or live online. Simple monthly fees with no long-term lock-in. Ask on WhatsApp for timings and fees.</p></section>
-<section class="grid">${PROGS.map(progCard).join('')}</section>
-<section class="card stack"><h2>What every family gets</h2><div class="grid">
-<div><b>Free demo class</b><p class="muted small">See the method before you decide.</p></div>
-<div><b>Starting check</b><p class="muted small">In week one, so we know where your child stands.</p></div>
-<div><b>Progress you can see</b><p class="muted small">Monthly report, stuck-alerts and a pre-exam note.</p></div>
-<div><b>Practice at home</b><p class="muted small">The learning library, free for every student.</p></div></div></section>
+function programmes(){return `<section class="stack">${L(28)}</section>
+<section class="grid">${progsL().map(progCard).join('')}</section>
+<section class="card stack">${L(29)}<div class="grid">
+<div>${L(30)}</div>
+<div>${L(31)}</div>
+<div>${L(32)}</div>
+<div>${L(33)}</div></div></section>
 ${contactBlock()}`}
-function about(){return `<section class="aboutme"><img class="me" src="img/chetana.jpg" alt="Chetana" width="420" height="525"><div class="stack"><h1>About Chetana</h1><p class="lead">An engineer who chose teaching, because she loves it.</p><p class="sig">“Every child can learn anything when the idea is explained the right way.”</p></div></section>
+function about(){return `<section class="aboutme"><img class="me" src="img/chetana.jpg" alt="Chetana" width="420" height="525"><div class="stack">${L(34)}</div></section>
 <section class="grid">
-<div class="card step"><b>Engineer by training</b>Computer Science engineering graduate.</div>
-<div class="card step"><b>Start-up experience</b>Worked with start-ups before turning to teaching.</div>
-<div class="card step"><b>Teaching since the USA</b>Began teaching while living in the USA.</div>
-<div class="card step"><b>Senior-grade teaching</b>Has taught Information Technology to Grade 11 and 12 students.</div></section>
-<section class="quote"><span>Her special gift</span><p>From “I’m scared of Marathi” to “Can we read one more page?”</p><small>She turns a child’s fear of English, Marathi or Hindi into real love for the language, and is just as strong in Maths and Science.</small></section>
-<section class="card stack"><h2>Why parents choose her</h2><ul class="ticks"><li>She plans each term like a project, so nothing is left to the last week.</li><li>She teaches from your child’s own book, whatever the school.</li><li>She uses technology where it helps: self-study practice, tracking and clear reports.</li><li>Small batches, so every child is heard.</li></ul></section>
+<div class="card step">${L(35)}</div>
+<div class="card step">${L(36)}</div>
+<div class="card step">${L(37)}</div>
+<div class="card step">${L(38)}</div></section>
+<section class="quote">${L(39)}</section>
+<section class="card stack">${L(40)}</section>
 ${contactBlock()}`}
 function learn(){return `<a class="kwban" href="#world"><span class="kwban-isl" aria-hidden="true">🏝️</span><span><b>Enter Kids’ World</b><span>The fun way in: a 3D island map for children.</span></span></a>
 <section class="stack"><h1>Learning library</h1><p class="muted lead">Free for every student. Pick your name in Quick missions to save stars and progress, so Chetana can see what you have practised.</p></section>
@@ -149,12 +168,16 @@ function learn(){return `<a class="kwban" href="#world"><span class="kwban-isl" 
 <a class="card lib big" href="#grammar"><span class="pill">Grade 3 and up</span><b>English grammar</b><span>9 chapters: nouns, pronouns, tenses, adjectives and adverbs, articles, prepositions, agreement, punctuation, conjunctions. 50 questions each.</span></a>
 <a class="card lib big" href="#maths"><span class="pill">Grade 3 and up</span><b>Maths</b><span>14 chapters with a concept page and 50 practice questions each, including real-life problems.</span></a>
 <a class="card lib big" href="#bhasha"><span class="pill">Beginners, Grade 1 up</span><b>Marathi &amp; Hindi</b><span>10 chapters on the Devanagari script: every vowel and consonant, look-alikes, the full barakhadi, nasal marks, joint letters, words and numbers.</span></a>
+<a class="card lib big" href="#mgram"><span class="pill">Grade 3 and up</span><b>Marathi grammar <span class="dev">मराठी व्याकरण</span></b><span>6 chapters: parts of speech, gender (तो/ती/ते), number, opposites, same-meaning words, tense. 50 questions each.</span></a>
+<a class="card lib big" href="#hgram"><span class="pill">Grade 3 and up</span><b>Hindi grammar <span class="dev">हिंदी व्याकरण</span></b><span>6 chapters: parts of speech, gender, number, opposites, synonyms, tense. 50 questions each.</span></a>
+<a class="card lib big" href="#toys"><span class="pill">All ages</span><b>3D toys</b><span>Turn 3D shapes and count faces, edges and corners; build numbers with place-value blocks; slice a fraction cake.</span></a>
+<a class="card lib big" href="#practice"><span class="pill">All ages</span><b>Practice: mistakes and mixed tests</b><span>Fix the questions you got wrong, take a 20-question mixed revision test, and see this week’s quest.</span></a>
 <a class="card lib big" href="#kids"><span class="pill">All ages</span><b>Quick missions</b><span>10-question games: times tables, earn and owe, Marathi letters, -ed sounds, magic e.</span></a></section>
 <section class="card stack"><h2>For teachers</h2><p class="muted">Each library has a Teacher guide tab with the big idea, how to teach it, and the mistakes to watch for.</p></section>`}
-function contactBlock(){return `<section class="contact"><div><h2>Book a free demo class</h2><p>Sparklet, Megapolis, Hinjawadi, Pune · Live online classes too</p><p class="small">WhatsApp: wa.me/919730195429</p></div><div class="row"><a class="btn go" href="#book">Book a free demo</a><a class="btn" href="${WA}">Message on WhatsApp</a></div></section>`}
+function contactBlock(){return `<section class="contact"><div>${L(41)}<p class="small">WhatsApp: wa.me/919730195429</p></div><div class="row">${L(42)}</div></section>`}
 
 function pad(title,sub,needOk){return `<section class="card stack center"><h2>${esc(title)}</h2>${sub?`<p class="muted">${esc(sub)}</p>`:''}
-<div class="dots" aria-label="${buf.length} digits entered">${'●'.repeat(buf.length)||' '}</div>
+<div class="dots" role="status" aria-label="${buf.length} digits entered">${'●'.repeat(buf.length)||' '}</div>
 ${msg?`<p class="pill bad" role="alert">${esc(msg)}</p>`:''}
 <div class="pad">${[1,2,3,4,5,6,7,8,9].map(d=>`<button class="btn" data-act="pd" data-d="${d}">${d}</button>`).join('')}
 <button class="btn" data-act="pb" aria-label="Delete">⌫</button><button class="btn" data-act="pd" data-d="0">0</button>
@@ -176,6 +199,7 @@ function kidHome(){const st=streak(kid),tr=tricky(kid);return `
 <div class="card center"><div class="stat">${st}</div><div class="muted small">day${st===1?'':'s'} in a row</div></div>
 <div class="card center"><div class="stat">${kid.teach||0}</div><div class="muted small">teach-back missions</div></div></div>
 ${kid.note?`<div class="card"><b>From Chetana ma'am:</b> ${esc(kid.note)}</div>`:''}</section>
+${tonight()}
 <section class="stack"><h2>Today's missions</h2><div class="grid">
 ${GK.map(k=>{const s=stat(kid,k);return `<div class="card stack"><h3>${G[k].name}</h3><p class="muted small">${G[k].sub}</p>
 <div class="bar" role="img" aria-label="${s.m} of ${s.total} mastered"><i style="width:${s.m/s.total*100}%"></i></div><p class="small muted">${s.m} of ${s.total} mastered</p>
@@ -218,10 +242,10 @@ window.addEventListener('online',flushPending);setTimeout(flushPending,3000);
 function answer(v){const it=sess.q[sess.i].it;kid.progress=kid.progress||{};const p=kid.progress[it.id]=kid.progress[it.id]||{r:0,w:0,s:0};
   if(v===it.a){p.r++;p.s++;sess.right++;kid.stars=(kid.stars||0)+1;sess.phase='ok';render();setTimeout(()=>{if(sess&&sess.phase==='ok')next()},700)}
   else{p.w++;p.s=0;sess.phase='bad';render()}}
-function next(){sess.i++;sess.input='';if(sess.i>=sess.q.length){sess.phase='done';const d=today();kid.sessions=(kid.sessions||[]).filter(x=>x!==d).concat(d).slice(-90);saveKid()}else sess.phase='ask';render()}
+function next(){sess.i++;sess.input='';if(sess.i>=sess.q.length){sess.phase='done';qev('mission');const d=today();kid.sessions=(kid.sessions||[]).filter(x=>x!==d).concat(d).slice(-90);saveKid()}else sess.phase='ask';render()}
 function toast(t,bad){let el=document.getElementById('toast');if(!el){el=document.createElement('div');el.id='toast';el.setAttribute('role','status');el.setAttribute('aria-live','polite');document.body.appendChild(el)}
   el.textContent=t;el.className=bad?'show bad':'show';clearTimeout(el._t);el._t=setTimeout(()=>{el.className=''},6000)}
-function tfail(e){const m=e.message==='Wrong PIN'?'Wrong PIN. Try again.':/Too many/.test(e.message)?e.message:e.message==='offline'?'No internet connection. Nothing was lost: check the connection and tap Save again.':'Could not save: '+e.message;
+function tfail(e){if(/Google sign-in/.test(e.message)){gTok=null;tdata=null;tpin='';msg='Please sign in with Google again.';render();return}const m=e.message==='Wrong PIN'?'Wrong PIN. Try again.':/Too many/.test(e.message)?e.message:e.message==='offline'?'No internet connection. Nothing was lost: check the connection and tap Save again.':'Could not save: '+e.message;
   if(!tdata){msg=m;render()}else toast(m,true)}
 function putStudent(s){return S.tPut(tpin,'students',s).then(r=>{if(SYNC_URL&&r)s=r;const i=tdata.students.findIndex(x=>x.id===s.id);if(i<0)tdata.students.push(s);else tdata.students[i]=s;names=null;msg='';render()}).catch(tfail)}
 const val=id=>document.getElementById(id).value.trim();
@@ -244,7 +268,7 @@ const acts={
   go(){if(sess.phase!=='ask'||!/\d/.test(sess.input))return;answer(String(parseInt(sess.input,10)))},
   next(){next()},
   teach(){kid.teach=(kid.teach||0)+1;sess.taught=true;saveKid()},
-  tlock(){tpin='';tdata=null;tsel=null;msg='';render()},
+  tlock(){tpin='';tdata=null;tsel=null;gTok=null;tTedit=null;tview='today';msg='';try{google.accounts.id.disableAutoSelect()}catch(e){}render()},
   ttab(d){tview=d.t;tsel=null;armed=null;msg='';render()},
   tsel(d){tsel=d.id;armed=null;render();window.scrollTo(0,0)},
   tback(){tsel=null;armed=null;render()},
@@ -268,7 +292,12 @@ const forms={
 /* ====== phonics: chapter-wise self study ====== */
 let ptab='kids',ps=null;
 const canSay='speechSynthesis' in window;
-function say(t,lang){try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t);u.rate=.85;u.lang=lang||'en-IN';speechSynthesis.speak(u)}catch(e){}}
+function say(t,lang){try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t);u.rate=.85;u.lang=lang||'en-IN';
+  const vs=speechSynthesis.getVoices();
+  if(vs.length&&/^(hi|mr)/.test(u.lang)){const v=(u.lang.startsWith('mr')&&vs.find(x=>/^mr/i.test(x.lang)))||vs.find(x=>/^hi/i.test(x.lang));
+    if(v)u.voice=v;else{toast('This phone has no Hindi voice yet. Android: Settings → Text-to-speech → install Hindi. iPhone: Settings → Accessibility → Spoken Content → Voices → Hindi.',true);return}}
+  speechSynthesis.speak(u)}catch(e){}}
+if('speechSynthesis' in window){try{speechSynthesis.getVoices();speechSynthesis.onvoiceschanged=()=>{}}catch(e){}}
 const E={cat:'🐱',sun:'☀️',dog:'🐶',pig:'🐷',hat:'🎩',bed:'🛏️',bus:'🚌',fox:'🦊',box:'📦',hen:'🐔',pen:'🖊️',bat:'🦇',van:'🚐',bug:'🐛',nut:'🥜',leg:'🦵',log:'🪵',map:'🗺️',bag:'👜',
  carrot:'🥕',sock:'🧦',monkey:'🐵',duck:'🦆',apple:'🍎',ball:'⚽',tree:'🌳',lion:'🦁',goat:'🐐',bee:'🐝',boat:'⛵',moon:'🌙',snake:'🐍',bike:'🚲',cake:'🎂',banana:'🍌',tiger:'🐯',umbrella:'☂️',
  nose:'👃',octopus:'🐙',egg:'🥚',ring:'💍',watch:'⌚',zebra:'🦓',yoyo:'🪀',key:'🔑',fish:'🐟',ship:'🚢',chick:'🐥',sheep:'🐑',rain:'🌧️',snail:'🐌',train:'🚆',soap:'🧼',
@@ -577,154 +606,19 @@ const S14=[lv=>{const d=rnd(4,10),a=rnd(1,d-2),b=rnd(1,d-a-1);return fst(`${one(
  lv=>{if(lv===1){const d=rnd(2,6),W=rnd(2,6);return st(`A ribbon is ${W} m long. How many pieces of 1/${d} m can be cut from it?`,W*d,`Each metre gives ${d} pieces. ${W} \u00d7 ${d} = ${W*d} pieces.`)}const[n1,d1]=sf(),[n2,d2]=sf();return fst(`${one(NAMES)} has ${n1}/${d1} of a cake and gives away ${n2}/${d2} of that piece. What fraction of the whole cake is given away?`,fS(n1*n2,d1*d2),[fS(n1+n2,d1+d2),fS(n1*d2,d1*n2),fS(n1*n2+1,d1*d2)],`"Of" means multiply: ${n1}/${d1} \u00d7 ${n2}/${d2} = ${n1*n2}/${d1*d2}${simp(n1*n2,d1*d2)}.`)},
  lv=>{const[d1,d2]=one([[2,4],[2,3],[3,6],[4,8],[2,6],[2,8],[3,4],[2,5]]),L=d1*d2/gcd(d1,d2),x=L/d1,y=L/d2;return fst(`A jug holds 1/${d1} litre of milk. 1/${d2} litre is poured out. How much milk is left, in litres?`,fS(x-y,L),[`1/${d2-d1}`,fS(x-y+1,L),`${x-y}/${L+1}`],`Make the bottoms the same (${L}): 1/${d1} = ${x}/${L} and 1/${d2} = ${y}/${L}. Subtract the tops: ${x-y}/${L}${simp(x-y,L)}.`)}];
 const eg=(t,b)=>`<div class="eg"><b>${t}</b><br>${b}</div>`;
-const MA=[
- {n:1,title:'Addition',level:'Grade 3 and up',
-  learn:`<h4>The idea</h4><p>Adding means putting amounts together. Big numbers are added <b>place by place</b>: ones with ones, tens with tens, hundreds with hundreds. When a place adds up to 10 or more, the extra ten moves to the next place. This is called <b>carrying</b>.</p>
-  <h4>Step by step</h4><ol><li>Break each number into hundreds, tens and ones.</li><li>Add each place.</li><li>Put the parts together.</li></ol>
-  ${eg('Example 1: 47 + 38','Tens: 40 + 30 = 70. Ones: 7 + 8 = 15. Together: 70 + 15 = <b>85</b>.')}${eg('Example 2: 356 + 278','Hundreds: 300 + 200 = 500. Tens: 50 + 70 = 120. Ones: 6 + 8 = 14. Together: 500 + 120 + 14 = <b>634</b>.')}${eg('Example 3: make a round number','198 + 46: take 2 from 46 to make 198 into 200. Then 200 + 44 = <b>244</b>.')}
-  <h4>Watch out</h4><p>Do not forget the carried ten. A quick estimate helps: 356 + 278 is about 350 + 300 = 650, so 634 makes sense.</p>`,
-  sets:sets5(lv=>lv===1?qA(rnd(23,68),rnd(14,58)):lv===2?qA(rnd(125,689),rnd(24,289)):Math.random()<.5?qA(rnd(356,899),rnd(245,899)):qA(rnd(1250,4899),rnd(365,989)),
-   lv=>cyc(S1,t=>{const a=lv===1?rnd(23,89):rnd(245,1899),b=lv===1?rnd(14,78):rnd(135,950);return st(fill(t,{a,b}),a+b,`Put the two amounts together, so add: ${nf(a)} + ${nf(b)} = ${nf(a+b)}.`)}))},
- {n:2,title:'Subtraction',level:'Grade 3 and up',
-  learn:`<h4>The idea</h4><p>Subtracting finds what is left, or the <b>gap</b> between two numbers. A reliable way is to <b>count up</b> from the smaller number to the bigger one in easy jumps.</p>
-  <h4>Step by step</h4><ol><li>Start at the smaller number.</li><li>Jump to the next ten, then the next hundred.</li><li>Jump to the bigger number. Add the jumps.</li></ol>
-  ${eg('Example 1: 82 \u2212 47','47 to 50 is 3. 50 to 82 is 32. 3 + 32 = <b>35</b>.')}${eg('Example 2: 500 \u2212 237','237 to 240 is 3. 240 to 300 is 60. 300 to 500 is 200. 3 + 60 + 200 = <b>263</b>.')}${eg('Example 3: in columns, 634 \u2212 278','Ones: 4 is less than 8, so borrow a ten: 14 \u2212 8 = 6. Tens: 2 is less than 7, so borrow a hundred: 12 \u2212 7 = 5. Hundreds: 5 \u2212 2 = 3. Answer <b>356</b>.')}
-  <h4>Watch out</h4><p>In columns, never just take the smaller digit from the bigger one. Check by adding back: 356 + 278 = 634.</p>`,
-  sets:sets5(lv=>{if(lv===1){const a=rnd(41,98);return qS(a,rnd(13,a-9))}if(lv===2){const a=rnd(210,950);return qS(a,rnd(34,a-50))}if(Math.random()<.5){const a=one([300,400,500,600,700,800,1000]);return qS(a,rnd(123,a-45))}return qS(rnd(1200,5000),rnd(345,989))},
-   lv=>cyc(S2,t=>{const a=lv===1?rnd(45,98):rnd(320,2400),b=lv===1?rnd(12,a-8):rnd(115,a-60);return st(fill(t,{a,b}),a-b,`Find what is left or the gap, so subtract: ${nf(a)} \u2212 ${nf(b)} = ${nf(a-b)}.`)}))},
- {n:3,title:'Adding three numbers',level:'Grade 3 and up',
-  learn:`<h4>The idea</h4><p>Numbers can be added in <b>any order</b>. So look for two numbers that make a round number (10, 50, 100) and add those first. These pairs are called <b>friends</b>.</p>${chips(['1 + 9','2 + 8','3 + 7','4 + 6','5 + 5','25 + 75','40 + 60'])}
-  <h4>Step by step</h4><ol><li>Look at the ones digits. Find two that add to 10.</li><li>Add that pair first.</li><li>Add the third number.</li></ol>
-  ${eg('Example 1: 7 + 6 + 3','7 and 3 are friends: 10. Then 10 + 6 = <b>16</b>.')}${eg('Example 2: 27 + 15 + 13','27 and 13 are friends: 40. Then 40 + 15 = <b>55</b>.')}${eg('Example 3: 175 + 48 + 25','175 and 25 are friends: 200. Then 200 + 48 = <b>248</b>.')}
-  <h4>Watch out</h4><p>If there are no friends, just add two numbers, then add the third to that total.</p>`,
-  sets:sets5(lv=>{const[p,q,r]=trip(lv);return numQ(ex(shuffle([p,q,r]).map(nf).join(' + ')),'Add all three. Look for friends first.',p+q+r,friends(p,q,r))},
-   lv=>cyc(S3,t=>{const[p,q,r]=trip(lv===1?2:3),[a,b,c]=shuffle([p,q,r]);return st(fill(t,{a,b,c}),p+q+r,'Add all three amounts. '+friends(p,q,r))}))},
- {n:4,title:'Subtracting three numbers',level:'Grade 3 and up',
-  learn:`<h4>The idea</h4><p>Taking away two numbers one after the other is the same as taking away their <b>total</b>. So add the two numbers you are taking away, then subtract once.</p>
-  <h4>Step by step</h4><ol><li>Add the two numbers being taken away.</li><li>Subtract that total from the first number.</li><li>If there is a plus and a minus, work from left to right.</li></ol>
-  ${eg('Example 1: 50 \u2212 12 \u2212 8','12 + 8 = 20. Then 50 \u2212 20 = <b>30</b>.')}${eg('Example 2: 400 \u2212 135 \u2212 65','135 + 65 = 200. Then 400 \u2212 200 = <b>200</b>.')}${eg('Example 3: 60 + 25 \u2212 30','Left to right: 60 + 25 = 85. Then 85 \u2212 30 = <b>55</b>.')}
-  <h4>Watch out</h4><p>In 50 \u2212 12 \u2212 8, do not work out 12 \u2212 8 first. Think of a story: you had 50, spent 12, then spent 8 more.</p>`,
-  sets:sets5(lv=>{if(lv===3&&Math.random()<.5){const a=rnd(150,600),b=rnd(40,140),c=rnd(30,180);return Math.random()<.5?mixPM(a,b,c):mixMP(a,b,c)}const[a,b,c]=sub3n(lv);return sub3(a,b,c)},
-   lv=>cyc(S4,([k,t])=>{if(k==='s'){const[a,b,c]=sub3n(lv===1?1:2);return st(fill(t,{a,b,c}),a-b-c,`Two amounts are taken away. Add them first: ${nf(b)} + ${nf(c)} = ${nf(b+c)}. Then ${nf(a)} \u2212 ${nf(b+c)} = ${nf(a-b-c)}.`)}
-     const a=lv===1?rnd(20,60):rnd(150,600),b=lv===1?rnd(5,30):rnd(40,180),c=lv===1?rnd(3,20):rnd(30,160);return st(fill(t,{a,b,c}),a+b-c,`First add: ${nf(a)} + ${nf(b)} = ${nf(a+b)}. Then subtract: ${nf(a+b)} \u2212 ${nf(c)} = ${nf(a+b-c)}.`)}))},
- {n:5,title:'Big numbers: add and subtract',level:'Grade 3 and up',
-  learn:`<h4>The idea</h4><p>Four and five digit numbers work exactly like small ones. Write them in <b>columns</b> so that ones sit under ones, tens under tens, and so on. Then work from the right, one column at a time.</p>
-  <div style="text-align:center">${colsum(['4,275','+ 3,168'])}<div class="wordbig">7,443</div></div>
-  <h4>Step by step</h4><ol><li>Estimate first by rounding to the nearest thousand.</li><li>Line up the places.</li><li>Start from the ones. Carry when a column passes 9. Borrow when the top digit is smaller.</li><li>Compare with your estimate.</li></ol>
-  ${eg('Example 1: 4,275 + 3,168','Ones: 5 + 8 = 13, write 3 carry 1. Tens: 7 + 6 + 1 = 14, write 4 carry 1. Hundreds: 2 + 1 + 1 = 4. Thousands: 4 + 3 = 7. Answer <b>7,443</b>.')}${eg('Example 2: 50,000 \u2212 23,476','Count up: 23,476 to 23,480 is 4, to 23,500 is 20, to 24,000 is 500, to 50,000 is 26,000. Total <b>26,524</b>.')}
-  <h4>Watch out</h4><p>Numbers of different lengths must still line up from the right. Borrowing across zeros is where most mistakes happen, so count up instead.</p>`,
-  sets:sets5(lv=>{if(lv===1){if(Math.random()<.5)return bigA(rnd(1200,4999),rnd(1100,4999));const a=rnd(4000,9999);return bigS(a,rnd(1100,a-500))}if(lv===2){if(Math.random()<.5)return bigA(rnd(11000,49999),rnd(11000,49999));const a=rnd(30000,99999);return bigS(a,rnd(11000,a-2500))}
-     if(Math.random()<.5){const a=one([20000,30000,40000,50000,60000,80000,100000]);return bigS(a,rnd(3456,a-1234))}return bigA(rnd(45000,99999),rnd(8500,9999))},
-   lv=>cyc(S5,([k,t])=>{const a=lv===1?rnd(3200,9800):rnd(21000,98000),b=lv===1?rnd(1150,a-700):rnd(11500,a-3500);return k==='+'?st(fill(t,{a,b}),a+b,`Add the two amounts: ${nf(a)} + ${nf(b)} = ${nf(a+b)}.`):st(fill(t,{a,b}),a-b,`Find the difference, so subtract: ${nf(a)} \u2212 ${nf(b)} = ${nf(a-b)}.`)}))},
- {n:6,title:'Multiplication',level:'Grade 3 and up',
-  learn:`<h4>The idea</h4><p>Multiplying is a fast way to add <b>equal groups</b>. 4 groups of 6 is 6 + 6 + 6 + 6 = 4 \u00d7 6 = 24.</p><div style="text-align:center"><div class="dotgrid" role="img" aria-label="3 rows of 4 dots">${'<i></i>'.repeat(12)}</div><p>3 rows of 4 = 12</p></div>
-  <h4>Step by step for bigger numbers</h4><ol><li>Split the big number into tens and ones.</li><li>Multiply each part.</li><li>Add the parts.</li></ol>
-  ${eg('Example 1: 23 \u00d7 4','20 \u00d7 4 = 80. 3 \u00d7 4 = 12. 80 + 12 = <b>92</b>.')}${eg('Example 2: 347 \u00d7 6','300 \u00d7 6 = 1,800. 40 \u00d7 6 = 240. 7 \u00d7 6 = 42. Add: <b>2,082</b>.')}${eg('Example 3: 30 \u00d7 40','3 \u00d7 4 = 12, then put the two zeros back: <b>1,200</b>.')}
-  <h4>Watch out</h4><p>The order does not matter: 4 \u00d7 23 is the same as 23 \u00d7 4. In a story, look for "each", "every" or "rows of". They usually mean multiply.</p>`,
-  sets:sets5(lv=>lv===1?(Math.random()<.5?qT(rnd(2,9),rnd(3,9)):qMul(rnd(11,24),rnd(2,4))):lv===2?qMul(rnd(23,89),rnd(3,9)):(Math.random()<.6?qMul(rnd(112,489),rnd(3,9)):qTens()),
-   lv=>cyc(S6,t=>{const a=lv===1?rnd(3,9):rnd(6,9),b=lv===1?rnd(6,24):rnd(35,240);return st(fill(t,{a,b}),a*b,`These are equal groups, so multiply: ${a} \u00d7 ${nf(b)} = ${nf(a*b)}.`)}))},
- {n:7,title:'Division',level:'Grade 3 and up',
-  learn:`<h4>The idea</h4><p>Dividing means <b>sharing equally</b> or making <b>equal groups</b>. It is the times table backwards: because 7 \u00d7 8 = 56, we know 56 \u00f7 7 = 8.</p><div style="text-align:center" class="emo">🍪🍪🍪🍪 | 🍪🍪🍪🍪 | 🍪🍪🍪🍪</div>
-  <h4>Step by step for bigger numbers</h4><ol><li>Take out a big easy chunk (10 or 20 groups).</li><li>Divide what is left.</li><li>Add the two answers. Anything left over is the <b>remainder</b>.</li></ol>
-  ${eg('Example 1: 56 \u00f7 7','7 \u00d7 8 = 56, so the answer is <b>8</b>.')}${eg('Example 2: 96 \u00f7 4','4 \u00d7 20 = 80. That leaves 16, and 16 \u00f7 4 = 4. 20 + 4 = <b>24</b>.')}${eg('Example 3: 47 \u00f7 5','5 \u00d7 9 = 45 is the closest. 47 \u2212 45 = 2 left over. Answer <b>9 remainder 2</b>.')}
-  <h4>Watch out</h4><p>The remainder must be smaller than the number you divide by. If it is not, you can make one more group. Check by multiplying back.</p>`,
-  sets:sets5(lv=>lv===1?qDivC(rnd(2,9),rnd(2,10)):lv===2?(Math.random()<.6?qDivC(rnd(3,8),rnd(11,29)):qRemN()):qDivC(rnd(3,9),rnd(31,160)),
-   lv=>cyc(S7.concat(lv===2?S7R:[]),t=>{const b=rnd(3,9),q=lv===1?rnd(3,12):rnd(12,75);if(S7R.indexOf(t)>=0){const r=rnd(1,b-1),a=b*q+r;return st(fill(t,{a,b}),r,`${b} \u00d7 ${q} = ${nf(b*q)} is the closest below ${nf(a)}. ${nf(a)} \u2212 ${nf(b*q)} = ${r} left over.`)}
-     return st(fill(t,{a:b*q,b}),q,`This is equal sharing, so divide: ${nf(b*q)} \u00f7 ${b} = ${q}. Check: ${b} \u00d7 ${q} = ${nf(b*q)}.`)}))},
- {n:8,title:'Big numbers: multiply and divide',level:'Grade 4 and up',
-  learn:`<h4>The idea</h4><p>Big multiplications are several small ones added together. Big divisions are done in <b>chunks</b>. In both, splitting by place value does the work.</p>
-  ${eg('Example 1: 46 \u00d7 23','Split 23 into 20 and 3. 46 \u00d7 20 = 920. 46 \u00d7 3 = 138. 920 + 138 = <b>1,058</b>.')}${eg('Example 2: 1,284 \u00f7 4','4 \u00d7 300 = 1,200. That leaves 84. 4 \u00d7 20 = 80. That leaves 4, and 4 \u00f7 4 = 1. 300 + 20 + 1 = <b>321</b>.')}${eg('Example 3: 414 \u00f7 18','18 \u00d7 20 = 360. That leaves 54, and 54 \u00f7 18 = 3. 20 + 3 = <b>23</b>.')}
-  <h4>Step by step</h4><ol><li>Estimate first: 46 \u00d7 23 is about 50 \u00d7 20 = 1,000.</li><li>Split, work out each part, then add.</li><li>Check a division by multiplying back.</li></ol>
-  <h4>Watch out</h4><p>When multiplying by the tens digit, remember the zero: 46 \u00d7 20 is 920, not 92. In division, a place with nothing in it still needs a zero: 612 \u00f7 6 = 102.</p>`,
-  sets:sets5(lv=>lv===1?(Math.random()<.5?qMul(rnd(112,489),rnd(3,9)):qDivC(rnd(3,9),rnd(105,320))):lv===2?one([()=>qMulAB(rnd(12,39),rnd(11,29)),()=>qMul(rnd(1203,4890),rnd(3,7)),()=>qDivBig()])():(Math.random()<.5?qMulAB(rnd(112,345),rnd(12,29)):qDivC(rnd(11,25),rnd(12,96))),
-   lv=>cyc(S6.map(t=>['m',t]).concat(S7.map(t=>['d',t])),([k,t])=>{if(k==='m'){const a=lv===1?rnd(4,9):rnd(12,28),b=lv===1?rnd(112,480):rnd(24,96);return st(fill(t,{a,b}),a*b,`Equal groups, so multiply: ${a} \u00d7 ${nf(b)} = ${nf(a*b)}.`)}
-     const b=lv===1?rnd(3,9):rnd(11,24),q=lv===1?rnd(105,420):rnd(15,96);return st(fill(t,{a:b*q,b}),q,`Equal sharing, so divide: ${nf(b*q)} \u00f7 ${b} = ${nf(q)}. Check: ${b} \u00d7 ${nf(q)} = ${nf(b*q)}.`)}))},
- {n:9,title:'Speed tricks',level:'Grade 3 and up',
-  learn:`<h4>The idea</h4><p>A trick turns one hard sum into two easy ones. Every trick works because of how numbers are built, so always ask <b>why</b> it works.</p>
-  ${chips(['\u00d7 10, \u00d7 100: add zeros','\u00d7 5: halve, then \u00d7 10','\u00d7 4: double, double','\u00d7 9: \u00d7 10, minus one lot','\u00d7 11: split, sum in the middle','\u00d7 25: quarter, then \u00d7 100','\u00d7 50: halve, then \u00d7 100','\u00d7 99: \u00d7 100, minus one lot','\u00d7 15: \u00d7 10, plus half','\u00f7 5: double, then \u00f7 10','\u00f7 25: \u00d7 4, then \u00f7 100'])}
-  ${eg('Example 1: 36 \u00d7 5','5 is half of 10. Half of 36 is 18, then \u00d7 10 = <b>180</b>.')}${eg('Example 2: 23 \u00d7 9','23 \u00d7 10 = 230. Take away one 23: <b>207</b>.')}${eg('Example 3: 45 \u00d7 11','Split 4 and 5. Their sum is 9. Put it in the middle: <b>495</b>. If the sum is 10 or more, carry 1: 78 \u00d7 11 = 858.')}${eg('Example 4: 16 \u00d7 25','A quarter of 16 is 4, then \u00d7 100 = <b>400</b>.')}
-  <h4>Divisibility checks</h4><p>A number divides by 3 if its digits add to a number in the 3 times table. It divides by 9 if its digits add to a number in the 9 times table.</p>`,
-  sets:sets5(lv=>pickTR(lv===1?['x10','x100','x5','x4','d5','x20']:lv===2?['x9','x11','x25','hd','x50']:['x99','x15','x11c','d25','div3','div9']),
-   lv=>cyc(S9[lv-1],f=>f()))},
- {n:10,title:'Tables up to 10',level:'Grade 3 and up',
-  learn:`<h4>The idea</h4><p>You do not need to memorise 100 facts. Learn the tables in a <b>smart order</b>, each with its own shortcut. And 3 \u00d7 7 is the same as 7 \u00d7 3, so every fact counts twice.</p>
-  ${chips(['\u00d7 1 and \u00d7 10: free','\u00d7 2: double','\u00d7 5: half of \u00d7 10','\u00d7 9: \u00d7 10 minus one lot','\u00d7 4: double, double','\u00d7 3: double plus one more'])}<p>After these, only <b>6 hard facts</b> are left:</p>${chips(['6 \u00d7 6 = 36','6 \u00d7 7 = 42','6 \u00d7 8 = 48','7 \u00d7 7 = 49','7 \u00d7 8 = 56','8 \u00d7 8 = 64'])}
-  ${eg('Example 1: 9 \u00d7 7','10 \u00d7 7 = 70. Take away one 7: <b>63</b>.')}${eg('Example 2: 4 \u00d7 8','Double 8 is 16. Double again: <b>32</b>.')}${eg('Example 3: 7 \u00d7 8','Remember 5, 6, 7, 8: 56 = 7 \u00d7 8. Answer <b>56</b>.')}
-  <h4>How to keep them in mind</h4><ol><li>One hard fact a day on the fridge.</li><li>A 2-minute mixed quiz every day. Try to beat your own time.</li><li>Say the fact both ways: 6 \u00d7 8 = 48 and 48 \u00f7 6 = 8.</li></ol>`,
-  sets:sets5(lv=>{if(lv===1)return qT(one([2,3,4,5,10]),rnd(2,10));if(lv===2){if(Math.random()<.5){const[a,b]=one([[6,6],[6,7],[6,8],[7,7],[7,8],[8,8]]);return qT(a,b)}return qT(rnd(6,9),rnd(3,9))}
-     const a=rnd(3,9),b=rnd(3,9);return one([()=>qTMiss(a,b),()=>numQ(ex(`${a*b} \u00f7 ${a}`),'Divide.',b,`Use the ${a} times table backwards: ${a} \u00d7 ${b} = ${a*b}.`),()=>qSq(rnd(4,9))])()},
-   lv=>thing(THINGS10,lv===1?3:6,lv===1?9:10,lv,(per,n)=>'Equal groups, so multiply. '+tHint(per,n)))},
- {n:11,title:'Tables 11 to 20',level:'Grade 4 and up',
-  learn:`<h4>The idea</h4><p>Every table from 11 to 19 is a table you already know plus the 10 times table. <b>Split the number into 10 and the rest.</b></p>
-  ${eg('Example 1: 13 \u00d7 7','10 \u00d7 7 = 70. 3 \u00d7 7 = 21. 70 + 21 = <b>91</b>.')}${eg('Example 2: 18 \u00d7 6','10 \u00d7 6 = 60. 8 \u00d7 6 = 48. 60 + 48 = <b>108</b>.')}${eg('Example 3: 15 \u00d7 8','10 \u00d7 8 = 80. Half of 80 is 40. 80 + 40 = <b>120</b>.')}
-  <h4>Shortcuts</h4>${chips(['\u00d7 11: write the digit twice (11 \u00d7 6 = 66)','\u00d7 12: \u00d7 10 plus double','\u00d7 15: \u00d7 10 plus half of it','\u00d7 19: \u00d7 20 minus one lot','\u00d7 20: double, then \u00d7 10'])}
-  <h4>Squares worth knowing</h4>${chips(['11 \u00d7 11 = 121','12 \u00d7 12 = 144','13 \u00d7 13 = 169','14 \u00d7 14 = 196','15 \u00d7 15 = 225','16 \u00d7 16 = 256','20 \u00d7 20 = 400'])}
-  <h4>How to keep them in mind</h4><p>Learn one table a week. Write it once, then cover it and rebuild it using the split trick. Rebuilding is stronger than chanting.</p>`,
-  sets:sets5(lv=>{if(lv===1)return qT20(one([11,12,15,20]),rnd(2,9));if(lv===2)return qT20(one([13,14,16,17,18,19]),rnd(2,9));const a=rnd(11,20),b=rnd(6,12);
-     return one([()=>qT20(a,b),()=>numQ(ex(`${a} \u00d7 ? = ${a*b}`),'Find the missing number.',b,`Try the split: ${a} \u00d7 ${b} = ${10*b} + ${(a-10)*b} = ${a*b}.`),()=>qSq(rnd(11,20))])()},
-   lv=>thing(THINGS20,lv===1?2:6,lv===1?5:12,lv,(per,n)=>`Equal groups, so multiply. Split ${per} into 10 and ${per-10}: ${10*n} + ${(per-10)*n} = ${per*n}.`))},
- {n:12,title:'LCM and HCF',level:'Grade 5 and up',
-  learn:`<h4>The idea</h4><p><b>Factors</b> are numbers that divide another number exactly. <b>Multiples</b> are the numbers in its times table.</p>
-  <p><b>HCF</b> (highest common factor) is the biggest factor two numbers share. <b>LCM</b> (lowest common multiple) is the first multiple two numbers share.</p>
-  ${eg('Example 1: HCF of 12 and 18','Factors of 12: 1, 2, 3, 4, 6, 12. Factors of 18: 1, 2, 3, 6, 9, 18. The biggest in both lists is <b>6</b>.')}${eg('Example 2: LCM of 4 and 6','Multiples of 4: 4, 8, 12. Multiples of 6: 6, 12. The first in both lists is <b>12</b>.')}${eg('Example 3: a quick check','HCF \u00d7 LCM = the two numbers multiplied. For 4 and 6: 2 \u00d7 12 = 24 and 4 \u00d7 6 = 24.')}
-  <h4>Step by step</h4><ol><li>List factors in pairs so you miss none: 1 \u00d7 12, 2 \u00d7 6, 3 \u00d7 4.</li><li>For LCM, list multiples of the bigger number and stop at the first one the smaller number divides.</li></ol>
-  <h4>Which one does a story need?</h4><p>"Largest equal groups" or "longest equal pieces" means <b>HCF</b>. "Together again" or "the same number of each" means <b>LCM</b>.</p>`,
-  sets:sets5(lv=>lv===1?one([qFactor,qMultiple,qCountF,qPrime])():lv===2?(Math.random()<.5?qHCF():qLCM()):one([()=>qHCF(1),()=>qLCM(1),qLCM3])(),
-   lv=>cyc(S12,f=>{const[a,b,g,L]=pairLH(lv===2);return f(a,b,g,L)}))},
- {n:13,title:'Fractions: the basics',level:'Grade 3 and up',
-  learn:`<h4>The idea</h4><p>A fraction is some <b>equal parts of one whole</b>.</p><div style="text-align:center">${fbar(3,4)}${fx(fH('3/4'))}</div>
-  <p>The <b>denominator</b> (bottom number) tells how many equal parts make the whole: 4. The <b>numerator</b> (top number) tells how many parts we have: 3.</p>
-  ${eg('Example 1: comparing','With the same bottom number, the bigger top wins: 5/8 is more than 3/8. With the same top number, the smaller bottom wins: 1/3 is more than 1/5, because fewer parts means bigger pieces.')}${eg('Example 2: equal fractions','Multiply the top and the bottom by the same number: 1/2 = 2/4 = 4/8. They look different but are the same amount.')}${eg('Example 3: simplest form','Divide the top and the bottom by the same number: 6/8, divide both by 2, gives <b>3/4</b>.')}${eg('Example 4: a fraction of a number','3/4 of 20: divide by the bottom, 20 \u00f7 4 = 5, then multiply by the top, 5 \u00d7 3 = <b>15</b>.')}
-  <h4>Watch out</h4><p>1/8 is <b>smaller</b> than 1/4, even though 8 is bigger than 4. A pizza shared by 8 people gives smaller slices.</p>`,
-  sets:sets5(lv=>lv===1?one([qShaded,()=>qNumDen(1),()=>qNumDen(0),qCmpD])():lv===2?one([qEquiv,qSimplify,qCmpN,qMissNum])():one([qCmpU,qSimpBig,qFOf,qWholes])(),
-   lv=>cyc(S13,f=>f(lv)))},
- {n:14,title:'Fractions: add, subtract, multiply, divide',level:'Grade 5 and up',
-  learn:`<h4>The idea</h4><p>You can only add or subtract pieces of the <b>same size</b>. So the bottom numbers must match first. Multiplying and dividing follow their own short rules.</p>
-  ${chips(['Add or subtract: same bottoms, then work on the tops','Multiply: top \u00d7 top, bottom \u00d7 bottom','Divide: flip the second fraction, then multiply','Always simplify at the end'])}
-  <div style="text-align:center">${fx(fH('1/2'),op('+'),fH('1/4'),op('='),fH('2/4'),op('+'),fH('1/4'),op('='),fH('3/4'))}</div>
-  ${eg('Example 1: 2/7 + 3/7','Same bottom, add the tops: <b>5/7</b>.')}${eg('Example 2: 1/2 + 1/3','The LCM of 2 and 3 is 6. 1/2 = 3/6 and 1/3 = 2/6. 3/6 + 2/6 = <b>5/6</b>.')}${eg('Example 3: 2/3 \u00d7 3/4','2 \u00d7 3 = 6 and 3 \u00d7 4 = 12, so 6/12, which simplifies to <b>1/2</b>.')}${eg('Example 4: 1/2 \u00f7 1/4','Flip the second and multiply: 1/2 \u00d7 4/1 = 4/2 = <b>2</b>. It asks: how many quarters fit in a half?')}
-  <h4>Watch out</h4><p>Never add the bottom numbers: 1/2 + 1/3 is not 2/5. When dividing, flip only the second fraction.</p>`,
-  sets:sets5(lv=>lv===1?one([qFAddSame,qFSubSame])():lv===2?one([qFAddUnlike,qFSubUnlike])():one([qFMul,qFDiv,qFOf,qOneMinus])(),
-   lv=>cyc(S14,f=>f(lv)))}
-];
-const MGUIDE=[
-['How to use the maths chapters',`<p>Each chapter has one big idea and one or two tricks. Children learn the idea with objects or pictures first, then practise in Kids' self study until they earn the badge (6 of 8), then explain the trick back to you.</p>
-<h4>Three rules</h4><ul><li>Understanding before speed. A trick is taught only after the child can show why it works.</li><li>Always estimate before a big calculation and check after.</li><li>Mistakes go into the child's mistake bank and come back before the next test.</li></ul>
-<h4>Order</h4><p>Chapters 1 to 4 suit Grades 1 to 3, chapters 5 to 11 suit Grades 3 to 6, and chapters 12 to 14 suit Grades 5 to 7. A child who struggles in a later chapter usually has a gap in tables (chapter 10).</p>`],
-['1 and 2: Addition and subtraction',`<h4>Big idea</h4><p>Numbers can be broken apart and put back together. Ten is the anchor.</p>
-<h4>Teach it</h4><ul><li>Friends of ten with fingers or counters until instant.</li><li>Make ten: 8 + 5 becomes 8 + 2 + 3.</li><li>Two-digit sums: tens with tens, ones with ones, then combine.</li><li>Subtraction as the gap: count up on a number line (the frog).</li></ul>
-<h4>Watch for</h4><ul><li>Counting everything from 1 on fingers: teach counting on from the bigger number.</li><li>In 42 − 17, subtracting the smaller digit from the bigger in each column (answer 35). Use counting up or show borrowing with tens rods.</li></ul>
-<h4>Move up when</h4><p>Friends of ten are instant and two-digit sums are right 8 times out of 10.</p>`],
-['3 and 4: Three numbers',`<h4>Big idea</h4><p>Addition can be done in any order, so choose the easy pair first. Taking away two numbers is the same as taking away their total.</p>
-<h4>Teach it</h4><ul><li>Circle the friends that make 10 or a round number before adding.</li><li>For a − b − c, add b and c first, then subtract once.</li><li>For mixed plus and minus, go left to right.</li></ul>
-<h4>Watch for</h4><ul><li>Changing the order in subtraction (20 − 5 is not 5 − 20).</li><li>In 50 − 12 − 8, doing 12 − 8 first. Say it as a story: "I had 50, spent 12, then spent 8."</li></ul>`],
-['5: Big-number addition and subtraction',`<h4>Big idea</h4><p>Place value: the same steps as small numbers, repeated column by column.</p>
-<h4>Teach it</h4><ul><li>Write on squared paper, one digit per box, places lined up.</li><li>Start from the ones. Say "carry" and "borrow" aloud and write the small digit.</li><li>Estimate first by rounding to thousands; compare after.</li></ul>
-<h4>Watch for</h4><ul><li>Misaligned columns when numbers have different lengths.</li><li>Borrowing across zeros (5,003 − 1,247): practise this case on its own.</li><li>Forgetting the carried 1.</li></ul>`],
-['6 and 7: Multiplication and division',`<h4>Big idea</h4><p>Multiplication is equal groups; division is sharing or grouping. They undo each other.</p>
-<h4>Teach it</h4><ul><li>Build arrays with counters: 3 rows of 4.</li><li>Split a two-digit number: 23 × 4 = 20 × 4 + 3 × 4.</li><li>Division as "how many groups?" and as the table backwards: 7 × ? = 56.</li><li>Remainders with real sharing: 17 sweets, 5 children.</li></ul>
-<h4>Watch for</h4><ul><li>Weak tables slowing everything: go to chapter 10.</li><li>A remainder bigger than the divisor: "Can you make one more group?"</li></ul>`],
-['8: Big-number multiplication and division',`<h4>Teach it</h4><ul><li>Split by place and add the parts before teaching the short written method.</li><li>Two-digit × two-digit: split the second number into tens and ones (area model on squared paper).</li><li>Long division place by place, carrying the leftover. Always multiply back to check.</li></ul>
-<h4>Watch for</h4><ul><li>Forgetting the zero when multiplying by the tens digit.</li><li>Skipping a zero in the quotient (612 ÷ 6 = 102, not 12).</li></ul>`],
-['9: Speed tricks',`<p>Teach one trick a week, and always show why it works.</p>
-<ul><li>× 10, × 100: digits move one or two places.</li><li>× 5: halve, then × 10. ÷ 5: double, then ÷ 10.</li><li>× 9: × 10, minus one lot.</li><li>× 4: double, double. × 8: double three times.</li><li>× 25: quarter, then × 100.</li><li>× 11 (two digits): split the digits, put their sum in the middle. If the sum is 10 or more, carry 1.</li><li>Halve and double: 16 × 25 = 8 × 50 = 4 × 100.</li><li>Divisible by 3: digit sum is in the 3 times table. By 9: digit sum in the 9 times table. By 4: last two digits divide by 4.</li></ul>`],
-['10 and 11: Tables to 20',`<h4>Smart order</h4><p>× 1, × 10, × 2, × 5, × 9, × 4, × 3. Each has a shortcut. Then only six hard facts remain: 6×6, 6×7, 6×8, 7×7, 7×8, 8×8. One fact a day on the fridge.</p>
-<h4>Teach it</h4><ul><li>Turn-around facts: 3 × 7 = 7 × 3, so half the table is already known.</li><li>Missing-number questions (7 × ? = 56) build division at the same time.</li><li>Daily 2-minute mixed quiz; record the child's time and beat it.</li></ul>
-<h4>Tables 11 to 20</h4><ul><li>Split into 10 and the rest: 13 × 7 = 70 + 21.</li><li>× 11: write the digit twice (up to 9). × 12: × 10 plus double.</li><li>× 15: × 10 plus half of that. × 20: double, then × 10.</li><li>Squares worth knowing: 11² = 121, 12² = 144, 13² = 169, 14² = 196, 15² = 225.</li></ul>`],
-['12: LCM and HCF',`<h4>Big idea</h4><p>Factors go into a number; multiples come out of it. HCF is the biggest shared factor; LCM is the first shared multiple.</p>
-<h4>Teach it</h4><ul><li>List factors in pairs (1 × 12, 2 × 6, 3 × 4) so none are missed.</li><li>List multiples of both numbers and circle the first match.</li><li>Later: prime factor trees. HCF takes shared primes; LCM takes all primes at their highest count.</li><li>Check: HCF × LCM = product of the two numbers.</li></ul>
-<h4>Watch for</h4><ul><li>Mixing up the two words. Hook: HCF is small (a factor), LCM is large (a multiple).</li><li>Story clues: "largest equal groups" means HCF; "next time together" means LCM.</li></ul>`],
-['13: Fractions, the basics',`<h4>Big idea</h4><p>A fraction is equal parts of one whole. The denominator names the size of the parts; the numerator counts them.</p>
-<h4>Teach it</h4><ul><li>Fold paper strips into halves, quarters, eighths. Shade and name.</li><li>Compare with strips side by side: same bottom, bigger top wins; same top, smaller bottom wins.</li><li>Equivalent fractions by folding again: 1/2 becomes 2/4.</li><li>Simplify by dividing top and bottom by the same number.</li></ul>
-<h4>Watch for</h4><ul><li>"1/8 is bigger than 1/4 because 8 is bigger." Use pizza slices: more people, smaller slices.</li><li>Unequal parts counted as fractions.</li></ul>`],
-['14: Operations on fractions',`<h4>Rules, with the reason</h4><ul><li><b>Add or subtract:</b> pieces must be the same size, so make the bottoms the same (use the LCM), then work on the tops.</li><li><b>Multiply:</b> "of". Half of a quarter is an eighth: top × top, bottom × bottom.</li><li><b>Divide:</b> "how many fit?". Flip the second fraction and multiply.</li><li><b>Fraction of a number:</b> divide by the bottom, multiply by the top.</li><li>Simplify at the end.</li></ul>
-<h4>Watch for</h4><ul><li>Adding tops and bottoms (1/2 + 1/3 = 2/5). Show with strips that 2/5 is less than 1/2.</li><li>Flipping the first fraction instead of the second.</li><li>Forgetting to simplify.</li></ul>
-<h4>Move up when</h4><p>The child can add unlike fractions and explain why the bottoms must match.</p>`]
-];
 /* ====== chapter modules: shared engine ====== */
 const MODS={phonics:{name:'Phonics',title:'Phonics: reading and writing',key:'ph',ch:PH,guide:GUIDE,gnote:'A quick reference for teaching reading and writing in Grades 1 and 2. The Kids\u2019 self study chapters follow the same levels. The full guide with printable worksheets is in the Reading &amp; Writing Made Easy document.'},
- maths:{name:'Maths',title:'Maths: from adding to fractions',key:'ma',ch:MA,guide:MGUIDE,gnote:'A quick reference for each maths chapter: the big idea, how to teach it, the tricks, and the mistakes to watch for. The Kids\u2019 self study chapters follow the same order.'}};
+ maths:{name:'Maths',title:'Maths: from adding to fractions',key:'ma',ch:null,guide:null,src:'mod-maths.js',n:14,gnote:'A quick reference for each maths chapter: the big idea, how to teach it, the tricks, and the mistakes to watch for. The Kids\u2019 self study chapters follow the same order.'}};
 let cm='phonics';
+/* ====== lesson modules load only when needed ====== */
+const modLoading={};
+function loadMod(m){const M=MODS[m];if(!M||M.ch)return Promise.resolve();
+  return modLoading[m]=modLoading[m]||new Promise((res,rej)=>{const s=document.createElement('script');s.src=M.src;s.onload=res;s.onerror=()=>{delete modLoading[m];rej(Error('offline'))};document.head.appendChild(s)})}
+const loadAllMods=()=>Promise.all(Object.keys(MODS).map(loadMod));
+window.loadAllMods=loadAllMods;
+function needMods(list){const miss=list.filter(m=>MODS[m]&&!MODS[m].ch);if(!miss.length)return true;
+  Promise.all(miss.map(loadMod)).then(render).catch(()=>{app.innerHTML='<section class="card"><p>Could not load this part of the site. Check the internet and try again.</p></section>'});return false}
+
 const passN=len=>Math.ceil(len*.7);
 const myProg=()=>kid?(kid.progress||{}):(ls.get('ct_ph')||{});
 function chState(prog,m,c){const k=MODS[m].key+c.n;if(c.sets){const rs=c.sets.map((s,i)=>prog[k+'_'+i]),p=rs.filter(r=>r&&r.b>=7).length;return{played:rs.some(Boolean),done:p===c.sets.length,text:p+' of '+c.sets.length+' sets passed',short:p+'/'+c.sets.length+' sets'}}
@@ -771,9 +665,9 @@ function phPlay(){const m=MODS[cm],c=m.ch[ps.ch-1];
   ${a.show?`<div class="showbox">${a.show}</div>`:''}
   <div class="ask">${esc(a.ask)} ${canSay&&a.say&&ps.phase==='ask'?`<button class="btn" data-act="phsay" aria-label="Hear it">Hear it</button>`:''}</div>
   ${body}</section>`}
-function phMark(ok){if(ok){ps.right++;ps.phase='ok';render();const cur=ps;setTimeout(()=>{if(ps===cur&&ps.phase==='ok')phNext()},1300)}else{ps.phase='bad';render()}}
+function phMark(ok){if(!ok)mxAdd(cm,ps.ch,ps.q[ps.i]);if(ok){ps.right++;ps.phase='ok';render();const cur=ps;setTimeout(()=>{if(ps===cur&&ps.phase==='ok')phNext()},1300)}else{ps.phase='bad';render()}}
 function phNext(){ps.i++;ps.built=[];ps.input='';if(ps.i>=ps.q.length){ps.phase='done';phSave()}else ps.phase='ask';render()}
-function phSave(){const k=MODS[cm].key+ps.ch+(ps.set!=null?'_'+ps.set:''),up=o=>({b:Math.max((o||{}).b||0,ps.right),n:((o||{}).n||0)+1});
+function phSave(){if(ps.set!=null&&ps.right>=7)qev('set');const k=MODS[cm].key+ps.ch+(ps.set!=null?'_'+ps.set:''),up=o=>({b:Math.max((o||{}).b||0,ps.right),n:((o||{}).n||0)+1});
   if(kid){kid.progress=kid.progress||{};kid.progress[k]=up(kid.progress[k]);kid.stars=(kid.stars||0)+ps.right;const d=today();kid.sessions=(kid.sessions||[]).filter(x=>x!==d).concat(d).slice(-90);saveKid()}
   else{const g=ls.get('ct_ph')||{};g[k]=up(g[k]);ls.set('ct_ph',g);saveNote='Pick your name in Kids\u2019 Zone to save stars to your name.'}}
 Object.assign(acts,{
@@ -804,7 +698,7 @@ const FAQ=[
   ['How is this different from other tuition?','Each term is planned like a project: the syllabus and school test dates become a roadmap, chapters are broken into weekly goals, and each child’s own mistakes are revised before every test. Children move on only when they can explain an idea back.'],
   ['How will I know my child is improving?','You get a starting check in the first week, a quick message if your child is stuck on a topic, a note before each school test, and a monthly progress report on WhatsApp.'],
   ['My child is weak in Marathi or Hindi and we don’t speak it at home. Can you help?','Yes. This is one of Chetana’s specialities. She starts from the letters and builds up to reading, writing and speaking, so you don’t need to teach it at home.'],
-  ['What is the learning library?','Free practice on this website: English reading for Grades 1–2, Maths for Grade 3 and up, and quick missions. Students pick their name and PIN so Chetana can see what they have practised.']]],
+  ['What is the learning library?','Free practice on this website: English reading and grammar, Maths, Marathi and Hindi, 3D toys and Kids’ World. Students type their first name and PIN so Chetana can see what they have practised.']]],
  ['Online classes',[
   ['What do we need for online classes?','A laptop, tablet or phone with a camera, a steady internet connection and a quiet corner. Homework is sent as a photo on WhatsApp.'],
   ['Are online classes recorded?','Only with your written permission, and only so Chetana can make class notes and track progress. Recordings are kept briefly and are never shared.']]],
@@ -813,30 +707,30 @@ const FAQ=[
   ['Is there a long-term commitment?','No. You can stop with one month’s notice, and there is no advance payment for more than a month.'],
   ['What happens if my child misses a class?','Chetana shares a short recap or arranges an online catch-up. Fees are not refunded for missed classes.'],
   ['How do we start?','Book a free demo class. Chetana will meet your child, do a short starting check, and suggest the right batch.']]]];
-function faq(){return `<section class="stack"><h1>Questions parents ask</h1><p class="muted lead">Can’t find your answer? Ask on WhatsApp or book a free demo.</p></section>
-${FAQ.map(([g,qs])=>`<section class="stack"><h2>${g}</h2>${qs.map(([q,a])=>`<details class="card qa"><summary>${q}</summary><p>${a}</p></details>`).join('')}</section>`).join('')}
+function faq(){return `<section class="stack">${TRL(0)}</section>
+${(LANG==='en'?FAQ:FAQ_L[LANG]).map(([g,qs])=>`<section class="stack"><h2>${g}</h2>${qs.map(([q,a])=>`<details class="card qa"><summary>${q}</summary><p>${a}</p></details>`).join('')}</section>`).join('')}
 ${contactBlock()}`}
 const SUBJ=['English','Marathi','Hindi','Maths','Science','All subjects','Reading help (Grades 1–2)'];
 let booked=null;
-function book(){if(booked)return `<section class="card stack"><h1>Almost done</h1><p>Tap the button to send these details to Chetana on WhatsApp. She will reply to fix a demo time.</p>
+function book(){if(booked)return `<section class="card stack">${TRL(1)}
 <pre class="msg">${esc(booked)}</pre>
-<div class="row"><a class="btn go" href="https://wa.me/919730195429?text=${encodeURIComponent(booked)}">Send on WhatsApp</a><button class="btn" data-act="bcopy">Copy text</button><span id="bcopied" class="pill ok" hidden>Copied</span></div>
+<div class="row"><a class="btn go" href="https://wa.me/919730195429?text=${encodeURIComponent(booked)}"${TRL(2)}<button class="btn" data-act="bcopy"${TRL(3)}<span id="bcopied" class="pill ok" hidden>Copied</span></div>
 ${bookSaved==='ok'?'<p class="pill ok">Saved in Chetana\u2019s enquiry list. Sending it on WhatsApp too gets the quickest reply.</p>':bookSaved==='no'?'<p class="pill bad">Could not save it online, so please send it on WhatsApp.</p>':''}
-<p class="small muted">WhatsApp not opening? Copy the text and send it to 97301 95429.</p><button class="btn ghost" data-act="bedit">Change details</button></section>`;
- return `<section class="stack"><h1>Book a free demo class</h1><p class="muted lead">Fill in a few details. They go to Chetana on WhatsApp and into her private enquiry list, so she can follow up. Nothing else is done with them (see <a href="#privacy">Privacy</a>).</p></section>
+${TRL(4)}</section>`;
+ return `<section class="stack">${TRL(5)}</section>
 <form class="card stack" data-form="book" novalidate>
 ${msg?`<p class="pill bad" role="alert">${esc(msg)}</p>`:''}
-<div class="row"><label>Parent’s name<input id="bk-parent" required maxlength="40" autocomplete="name"></label><label>Child’s first name<input id="bk-child" maxlength="20"></label></div>
-<div class="row"><label>Grade<select id="bk-grade"><option value="">Choose</option>${[1,2,3,4,5,6,7,8,9,10].map(g=>`<option>${g}</option>`).join('')}</select></label>
-<label>Board<select id="bk-board"><option>State</option><option>CBSE</option><option>ICSE</option><option>Not sure</option></select></label>
-<label>School<input id="bk-school" maxlength="40"></label></div>
-<fieldset class="ck"><legend>Subjects</legend>${SUBJ.map((x,i)=>`<label class="chk"><input type="checkbox" id="bk-s${i}" value="${x}"> ${x}</label>`).join('')}</fieldset>
-<fieldset class="ck"><legend>Class mode</legend><label class="chk"><input type="radio" name="bk-mode" value="In person at Sparklet" checked> In person at Sparklet</label><label class="chk"><input type="radio" name="bk-mode" value="Online"> Online</label><label class="chk"><input type="radio" name="bk-mode" value="Either"> Either</label></fieldset>
-<div class="row"><label>Best time for the demo<select id="bk-time"><option>Weekday evening</option><option>Saturday</option><option>Sunday</option><option>Any time</option></select></label></div>
-<div class="row"><label>Your WhatsApp number (optional)<input id="bk-phone" type="tel" inputmode="tel" maxlength="16" autocomplete="tel"></label></div>
+<div class="row">${TRL(6)} id="bk-parent" required maxlength="40" autocomplete="name"></label>${TRL(7)} id="bk-child" maxlength="20"></label></div>
+<div class="row">${TRL(8)}${[1,2,3,4,5,6,7,8,9,10].map(g=>`<option>${g}</option>`).join('')}</select></label>
+${TRL(9)}
+${TRL(10)} id="bk-school" maxlength="40"></label></div>
+<fieldset class="ck">${TRL(11)}${SUBJ.map((x,i)=>`<label class="chk"><input type="checkbox" id="bk-s${i}" value="${x}"> ${LANG==='en'?x:SUBJ_L[LANG][i]}</label>`).join('')}</fieldset>
+<fieldset class="ck">${TRL(12)}<label class="chk"><input type="radio" name="bk-mode" value="In person at Sparklet" ${TRL(13)}<label class="chk"><input type="radio" name="bk-mode" ${TRL(14)}<label class="chk"><input type="radio" name="bk-mode" ${TRL(15)}</fieldset>
+<div class="row">${TRL(16)}</div>
+<div class="row">${TRL(17)} id="bk-phone" type="tel" inputmode="tel" maxlength="16" autocomplete="tel"></label></div>
 <label class="hp" aria-hidden="true">Website<input id="bk-web" tabindex="-1" autocomplete="off"></label>
-<label>Anything Chetana should know?<textarea id="bk-note" rows="3" maxlength="300" placeholder="e.g. struggles with Marathi reading, unit test next month"></textarea></label>
-<div class="row"><button class="btn go">Continue</button></div></form>`}
+${TRL(18)}
+<div class="row">${TRL(19)}`}
 Object.assign(forms,{book(){const v=id=>document.getElementById(id).value.trim(),parent=v('bk-parent'),grade=v('bk-grade');
   if(!parent||!grade){msg='Please add your name and your child’s grade.';render();return}
   const subj=SUBJ.filter((x,i)=>document.getElementById('bk-s'+i).checked),mode=document.querySelector('input[name="bk-mode"]:checked').value;
@@ -899,162 +793,7 @@ const nToDev=(lo,hi)=>{const n=rnd(lo,hi),w=[];while(w.length<2){const x=rnd(lo,
 const nSum=()=>{const a=rnd(1,9),b=rnd(1,9),s=Math.random()<.5;if(!s&&a<b)return nSum();return numQ(dv(`${toDev(a)} ${s?'+':'−'} ${toDev(b)}`,64),'Type the answer in normal digits.',s?a+b:a-b,`${toDev(a)} is ${a} and ${toDev(b)} is ${b}. ${a} ${s?'+':'−'} ${b} = ${s?a+b:a-b}.`)};
 const SET=(name,f)=>({name,make:()=>ten(f)});
 const dx=t=>`<span class="dev">${t}</span>`;
-const BH=[
- {n:1,title:'Vowels (स्वर)',level:'Beginners',
-  learn:`<h4>The idea</h4><p>Vowels (<b>स्वर</b>) are the letters that can be said on their own, without help from another letter. Every consonant needs a vowel to be spoken. There are <b>13 vowels</b> in the traditional list. Most come in <b>short and long pairs</b>: the long one is the same sound, held longer.</p>
-  <div class="center"><div class="dev wiggle" style="font-size:56px;line-height:1.3">अ आ इ ई उ ऊ ऋ</div><div class="dev" style="font-size:56px;line-height:1.3">ए ऐ ओ औ अं अः</div></div>
-  <h4>All the vowels</h4><p>(M) marks a Marathi word and (H) a Hindi word where the two languages differ.</p><div class="tw"><table><tr><th>Letter</th><th>Sound</th><th>Matra</th><th>Example word</th></tr>
-<tr><td class="dbig">अ</td><td>a (about)</td><td>none</td><td>${dx('अगरबत्ती')} incense</td></tr>
-<tr><td class="dbig">आ</td><td>aa (father)</td><td class="dbig">ा</td><td>${dx('आग')} fire</td></tr>
-<tr><td class="dbig">इ</td><td>i (sit)</td><td class="dbig">ि</td><td>${dx('इमारत')} building</td></tr>
-<tr><td class="dbig">ई</td><td>ee (see)</td><td class="dbig">ी</td><td>${dx('ईद')} Eid</td></tr>
-<tr><td class="dbig">उ</td><td>u (put)</td><td class="dbig">ु</td><td>${dx('उत्तर')} answer</td></tr>
-<tr><td class="dbig">ऊ</td><td>oo (moon)</td><td class="dbig">ू</td><td>${dx('ऊस')} sugarcane (M), ${dx('ऊन')} wool (H)</td></tr>
-<tr><td class="dbig">ऋ</td><td>ri (rhythm)</td><td class="dbig">ृ</td><td>${dx('ऋषी')} (M), ${dx('ऋषि')} (H) sage</td></tr>
-<tr><td class="dbig">ए</td><td>e (they)</td><td class="dbig">े</td><td>${dx('एक')} one</td></tr>
-<tr><td class="dbig">ऐ</td><td>ai (bat, said long)</td><td class="dbig">ै</td><td>${dx('ऐरावत')} Indra's elephant</td></tr>
-<tr><td class="dbig">ओ</td><td>o (go)</td><td class="dbig">ो</td><td>${dx('ओम')} Om</td></tr>
-<tr><td class="dbig">औ</td><td>au (August)</td><td class="dbig">ौ</td><td>${dx('औषध')} (M), ${dx('औषधि')} (H) medicine</td></tr>
-<tr><td class="dbig">अं</td><td>am / an (nasal)</td><td class="dbig">ं</td><td>${dx('अंडे')} (M), ${dx('अंडा')} (H) egg</td></tr>
-<tr><td class="dbig">अः</td><td>ah (breath)</td><td class="dbig">ः</td><td>${dx('दुःख')} sorrow</td></tr></table></div>
-  <h4>The groups</h4><ul><li><b>Short and long pairs:</b> ${dx('अ आ')}, ${dx('इ ई')}, ${dx('उ ऊ')}. Short ones are quick; long ones are held.</li><li><b>ऋ</b> sounds like "ri". It appears mostly in Sanskrit-based words: ${dx('ऋतु')} season, ${dx('कृष्ण')}.</li><li><b>Joined vowels:</b> ${dx('ए ऐ ओ औ')}. ${dx('ऐ')} and ${dx('औ')} look like ${dx('ए')} and ${dx('ओ')} with one extra stroke on top.</li><li><b>अं and अः</b> are a nasal sound and a breath sound added to अ. Chapter 9 covers them.</li></ul>
-  <h4>Marathi extras</h4><p>Marathi writes two more vowels for English words: ${dx('अॅ')} as in ${dx('बॅट')} (bat) and ${dx('ऑ')} as in ${dx('ऑफिस')} (office). Hindi also uses ${dx('ऑ')} (${dx('ऑफ़िस')}).</p>
-  <h4>Step by step</h4><ol><li>Say the sound before you show the letter.</li><li>Learn one pair at a time: ${dx('अ आ')}, then ${dx('इ ई')}, then ${dx('उ ऊ')}, then ${dx('ए ऐ ओ औ')}.</li><li>Clap once for a short sound; stretch your arms for a long sound.</li><li>Write each vowel with its roof line, then find it at the start of a word.</li></ol>
-  ${eg('Example 1: the a pair',`${dx('अ')} says "a" as in <i>about</i>. ${dx('आ')} says "aa" as in <i>father</i>. The extra standing line on ${dx('आ')} makes it long.`)}${eg('Example 2: the i pair',`${dx('इ')} says a short "i" as in <i>sit</i>. ${dx('ई')} says a long "ee" as in <i>see</i>.`)}${eg('Example 3: ए and ऐ',`${dx('ए')} says "e" as in <i>they</i>. Add one more stroke on top and it becomes ${dx('ऐ')}, "ai".`)}${eg('Example 4: vowel or matra?',`At the start of a word a vowel is written in full: ${dx('आग')}. After a consonant it becomes a matra: ${dx('का')}. Chapter 4 covers matras.`)}
-  <h4>Watch out</h4><ul><li>${dx('अ')} is not the "a" in <i>apple</i>. It is the soft, short "a" in <i>about</i>.</li><li>${dx('इ')} and ${dx('ई')} are easy to mix up when writing. Say the word slowly and listen for short or long.</li><li>${dx('ऋ')} is a vowel, even though it sounds like "r" + "i".</li></ul>`,
-  sets:[SET('Level 1: the first six',()=>vSound(VOW.slice(0,6))),SET('Level 2: all the vowels',()=>vSound(VOW)),SET('Level 3: say the letter',()=>vName(VOW)),
-   SET('Short and long pairs',()=>{const[s,l]=one(VPAIR),lg=Math.random()<.5,w=lg?l:s;return devQ(dx(lg?s:l).replace('class="dev"','class="dev" style="font-size:64px"'),`Which letter is the ${lg?'long':'short'} partner of this one?`,w,sample(VOW.map(v=>v[0]).filter(x=>x!==w&&x!==s&&x!==l),2),`${s} and ${l} are a pair: ${s} is short (${romOf(s)}), ${l} is long (${romOf(l)}).`)}),
-   SET('Challenge: mixed',()=>Math.random()<.5?vSound(VOW):vName(VOW))]},
- {n:2,title:'Consonants (व्यंजन)',level:'Beginners',
-  learn:`<h4>The idea</h4><p>Consonants (<b>व्यंजन</b>) are the letters that need a vowel to be spoken. Every consonant already carries a soft "a": ${dx('क')} is "ka", not "k". The letters are arranged in <b>families</b>, each made in the same part of the mouth. Learn the families and the alphabet makes sense.</p>
-  <div class="center dev pulse" style="font-size:52px"><span>क</span> <span>ख</span> <span>ग</span> <span>घ</span> <span>ङ</span></div>
-  <h4>All the consonants</h4><p>(M) marks a Marathi word and (H) a Hindi word where the two languages differ.</p><div class="tw"><table><tr><th>Family</th><th>Letters</th><th>Example words</th></tr>
-<tr><td>Throat (कंठ्य)</td><td class="dbig">क ख ग घ ङ</td><td>${dx('कप')} cup · ${dx('खजूर')} date · ${dx('गाय')} cow · ${dx('घर')} house · ${dx('ङ')} mostly inside words: ${dx('वाङ्मय')}</td></tr>
-<tr><td>Palate (तालव्य)</td><td class="dbig">च छ ज झ ञ</td><td>${dx('चप्पल')} slippers · ${dx('छत')} roof/ceiling · ${dx('जंगल')} forest · ${dx('झोपडी')} (M), ${dx('झोपड़ी')} (H) hut · ${dx('ञ')} mostly inside words</td></tr>
-<tr><td>Tongue curled back, hard (मूर्धन्य)</td><td class="dbig">ट ठ ड ढ ण</td><td>${dx('टेबल')} table · ${dx('ठसा')} stamp (M), ${dx('ठंड')} cold (H) · ${dx('डमरू')} drum · ${dx('ढोल')} drum · ${dx('बाण')} arrow</td></tr>
-<tr><td>Tongue on teeth, soft (दंत्य)</td><td class="dbig">त थ द ध न</td><td>${dx('तारा')} star · ${dx('थाळी')} (M), ${dx('थाली')} (H) plate · ${dx('दूध')} milk · ${dx('धागा')} thread · ${dx('नाक')} nose</td></tr>
-<tr><td>Lips (ओष्ठ्य)</td><td class="dbig">प फ ब भ म</td><td>${dx('पतंग')} kite · ${dx('फूल')} flower · ${dx('बस')} bus · ${dx('भारत')} India · ${dx('मोर')} peacock</td></tr>
-<tr><td>Others</td><td class="dbig">य र ल व</td><td>${dx('योग')} yoga · ${dx('रथ')} chariot · ${dx('लाल')} red · ${dx('वजन')} weight</td></tr>
-<tr><td>Hissing sounds</td><td class="dbig">श ष स ह</td><td>${dx('शंख')} conch · ${dx('ष')} mostly inside words: ${dx('धनुष्य')} (M) bow · ${dx('सूर्य')} sun · ${dx('हत्ती')} (M), ${dx('हाथी')} (H) elephant</td></tr>
-<tr><td>Marathi only</td><td class="dbig">ळ</td><td>${dx('शाळा')} school · ${dx('बाळ')} baby</td></tr>
-<tr><td>Special joined letters</td><td class="dbig">क्ष त्र ज्ञ श्र</td><td>${dx('क्षमा')} forgiveness · ${dx('त्रिकोण')} triangle · ${dx('ज्ञान')} knowledge · ${dx('श्रम')} hard work</td></tr></table></div>
-  <h4>How each family works</h4><p>The first five families have the same pattern of five letters:</p><ol><li><b>Plain:</b> ${dx('क')} ka</li><li><b>Breathy:</b> ${dx('ख')} kha, with a puff of air</li><li><b>Voiced:</b> ${dx('ग')} ga, the throat hums</li><li><b>Voiced and breathy:</b> ${dx('घ')} gha</li><li><b>Nasal:</b> ${dx('ङ')}, said through the nose</li></ol><p>The same pattern repeats: ${dx('च छ ज झ ञ')}, ${dx('ट ठ ड ढ ण')}, ${dx('त थ द ध न')}, ${dx('प फ ब भ म')}.</p>
-  ${eg('Example 1: plain and breathy',`${dx('क')} (ka) and ${dx('ख')} (kha). Hold a paper strip in front of your mouth: it moves only for the breathy one.`)}${eg('Example 2: hard and soft t and d',`${dx('ट')} and ${dx('ड')} are hard: curl your tongue back. ${dx('त')} and ${dx('द')} are soft: touch your teeth.`)}${eg('Example 3: three kinds of sh',`${dx('श')} as in ${dx('शंख')}, ${dx('ष')} (tongue curled back) as in ${dx('धनुष्य')}, and ${dx('स')} as in ${dx('सूर्य')}. In everyday speech ${dx('श')} and ${dx('ष')} sound almost the same.`)}${eg('Example 4: ज्ञ',`${dx('ज्ञ')} is said "dnya" in Marathi (${dx('ज्ञान')} dnyaan) and "gya" in Hindi (gyaan).`)}
-  <h4>Watch out</h4><ul><li>English has one "t" and one "d"; Devanagari has two of each.</li><li>${dx('ङ ञ ण')} rarely start a word. Learn to recognise them inside words.</li><li>${dx('ळ')} is used in Marathi, not in Hindi.</li></ul>`,
-  sets:[SET('Level 1: throat and lips',()=>cSound(CON.filter(c=>'कखगघपफबभम'.includes(c[0])))),SET('Level 2: all consonants',()=>cSound(CON)),SET('Level 3: say the letter',cName),
-   SET('Picture words: first letter',cFirst),SET('Challenge: which family?',cFam)]},
- {n:3,title:'Look-alike letters',level:'Beginners',
-  learn:`<h4>The idea</h4><p>Some letters look like twins. Two places tell them apart: the <b>roof</b> (the line on top, called शिरोरेखा) and the <b>inside</b> of the letter.</p>
-  <div class="center dev" style="font-size:80px;line-height:1.2">घ <span class="team">ध</span> &nbsp; म <span class="team">भ</span></div>
-  <h4>Step by step</h4><ol><li>Look at the roof first: is it full, or does it have a gap?</li><li>Then look inside: is there an extra line?</li><li>Then say the sound.</li></ol>
-  ${eg('Example 1: the open roof',`${dx('घ')} (gha) has a full roof. ${dx('ध')} (dha) has a gap on the left. ${dx('म')} (ma) and ${dx('भ')} (bha) work the same way.`)}${eg('Example 2: the inside line',`${dx('ब')} (ba) has a small line inside. ${dx('व')} (va) is empty inside.`)}${eg('Example 3: joined or apart',`${dx('ख')} (kha) is one letter, joined in the middle. ${dx('र')} and ${dx('व')} written side by side (${dx('रव')}) stand apart.`)}
-  <h4>All the look-alike pairs</h4><div class="tw"><table><tr><th>Pair</th><th>How to tell them apart</th></tr><tr><td class="dbig">घ ध</td><td>${dx('ध')} has a gap in the roof</td></tr><tr><td class="dbig">म भ</td><td>${dx('भ')} has a gap in the roof</td></tr><tr><td class="dbig">ख रव</td><td>${dx('ख')} is joined in the middle</td></tr><tr><td class="dbig">ब व</td><td>${dx('ब')} has a line inside</td></tr><tr><td class="dbig">प ष</td><td>${dx('ष')} has a line across</td></tr><tr><td class="dbig">ड ङ</td><td>${dx('ङ')} has a dot on the right</td></tr><tr><td class="dbig">द ढ</td><td>${dx('ढ')} has a tail curling out at the bottom</td></tr><tr><td class="dbig">थ य</td><td>${dx('थ')} has a small loop on the left</td></tr></table></div>
-  <h4>Watch out</h4><p>One wrong letter changes the word: ${dx('घर')} is a house, but ${dx('धर')} is not. When copying from the board, check the roof and the inside of every letter.</p>`,
-  sets:[SET('Level 1: the open roof',()=>rSound(ROOF.slice(0,4))),SET('Level 2: all look-alikes',()=>rSound(ROOF)),SET('Level 3: say the letter',rName),
-   SET('Words: spot the right spelling',rWord),SET('Challenge: mixed',()=>one([()=>rSound(ROOF),rName,rWord])())]},
- {n:4,title:'Matras (बाराखडी / बारहखड़ी)',level:'Beginners',
-  learn:`<h4>The idea</h4><p>When a vowel joins a consonant, it is not written in full. It becomes a small <b>sign</b> called a <b>matra</b>. Every vowel except ${dx('अ')} has a matra, because ${dx('अ')} is already inside every consonant. The chart of one letter with all its matras is the <b>बाराखडी</b> in Marathi and <b>बारहखड़ी</b> in Hindi (both mean "twelve").</p>
-  <div class="center dev" style="font-size:42px;line-height:1.5">क का कि की कु कू के कै को कौ कं कः</div>
-  <h4>The full chart</h4><p>The sign does the same job on every letter. Learn it once with ${dx('क')}, and the whole alphabet follows.</p><div class="tw"><table><tr><th>Sign</th><th>क</th><th>ग</th><th>म</th><th>स</th><th>Said</th></tr>
-${[['',''],['ा','aa'],['ि','i'],['ी','ee'],['ु','u'],['ू','oo'],['े','e'],['ै','ai'],['ो','o'],['ौ','au'],['ं','am'],['ः','ah']].map(([m,r])=>`<tr><td class="dbig">${m?'◌'+m:'–'}</td>${['क','ग','म','स'].map(c=>`<td class="dbig">${c+m}</td>`).join('')}<td>k${r||'a'}, g${r||'a'}…</td></tr>`).join('')}</table></div>
-  <h4>Where each sign sits</h4><ul><li><b>After:</b> ${dx('ा')} (${dx('का')}), ${dx('ी')} (${dx('की')})</li><li><b>Before:</b> ${dx('ि')} (${dx('कि')})</li><li><b>Below:</b> ${dx('ु ू ृ')} (${dx('कु कू कृ')})</li><li><b>On top:</b> ${dx('े ै ं')} (${dx('के कै कं')})</li><li><b>After, with a mark on top:</b> ${dx('ो ौ')} (${dx('को कौ')})</li><li><b>After, two dots:</b> ${dx('ः')} (${dx('कः')})</li></ul>
-  <h4>Letters that change shape</h4><ul><li>${dx('र')} takes ${dx('ु ू')} beside it, not below: ${dx('रु')} (ru), ${dx('रू')} (roo).</li><li>${dx('ऋ')} as a matra is ${dx('ृ')} under the letter: ${dx('कृ')} (kri), ${dx('गृ')} (gri).</li></ul>
-  ${eg('Example 1',`${dx('म')} + ${dx('ा')} = ${dx('मा')} (maa).`)}${eg('Example 2',`${dx('न')} + ${dx('ी')} = ${dx('नी')} (nee).`)}${eg('Example 3',`${dx('ल')} + ${dx('ो')} = ${dx('लो')} (lo).`)}${eg('Example 4: a whole word',`${dx('गुलाब')} = ${dx('ग')} + ${dx('ु')}, ${dx('ल')} + ${dx('ा')}, ${dx('ब')}.`)}
-  <h4>Watch out</h4><ul><li>${dx('ि')} is written <b>before</b> the letter but said <b>after</b> it: ${dx('कि')} is "ki", not "ik".</li><li>${dx('ो')} and ${dx('ौ')} differ only in the mark on top: one stroke for "o", two for "au".</li></ul>`,
-  sets:[SET('Level 1: ा ि ी with क',()=>mWhich([['क','k']],MAT.slice(0,4))),SET('Level 2: every matra with क',()=>mWhich([['क','k']],MAT)),SET('Level 3: every matra, every letter',()=>mWhich(MC,MAT)),
-   SET('Say it',mSay),SET('Challenge: join the sign',mJoin)]},
- {n:5,title:'Short or long?',level:'Beginners',
-  learn:`<h4>The idea</h4><p>The most common spelling mistakes in both Marathi and Hindi are short and long matras. Short sounds are quick; long sounds are held.</p>
-  <div class="center dev" style="font-size:64px">कि &nbsp; की &nbsp;&nbsp; कु &nbsp; कू</div>
-  <h4>Step by step</h4><ol><li>Say the sound slowly. Clap once for short; stretch your arms for long.</li><li>Short i (${dx('ि')}) stands <b>before</b> the letter. Long ee (${dx('ी')}) comes <b>after</b> it.</li><li>Short u (${dx('ु')}) and long oo (${dx('ू')}) both sit under the letter: look carefully at the sign.</li></ol>
-  ${eg('Example 1',`${dx('मि')} is a quick "mi". ${dx('मी')} is a long "mee".`)}${eg('Example 2',`${dx('पु')} is a quick "pu". ${dx('पू')} is a long "poo".`)}${eg('Example 3',`In ${dx('फूल')} (flower) the "oo" is long, so it takes ${dx('ू')}.`)}
-  <h4>Words to practise</h4><div class="tw"><table><tr><th>Short</th><th>Long</th></tr><tr><td class="dbig">दिन (day, H)</td><td class="dbig">दीप (lamp)</td></tr><tr><td class="dbig">गुलाब (rose)</td><td class="dbig">दूध (milk)</td></tr><tr><td class="dbig">जिराफ (giraffe)</td><td class="dbig">फूल (flower)</td></tr><tr><td class="dbig">उत्तर (answer)</td><td class="dbig">ईद (Eid)</td></tr></table></div>
-  <h4>Watch out</h4><p>Before writing an i or u sound, ask yourself: short or long? Marathi and Hindi sometimes spell the same word differently: ${dx('ऋषी')} (M) and ${dx('ऋषि')} (H).</p>`,
-  sets:[SET('Level 1: ि or ी with क',()=>{const q=slQ(true);return q}),SET('Level 2: ि or ी with all letters',()=>slQ(true)),SET('Level 3: ु or ू',()=>slQ(false)),
-   SET('Say it: short or long?',()=>slQ(Math.random()<.5,'say')),SET('Challenge: mixed',()=>slQ(Math.random()<.5,Math.random()<.5?'say':''))]},
- {n:6,title:'Read words',level:'Beginners',
-  learn:`<h4>The idea</h4><p>Words are made of <b>akshars</b>: a letter, with or without a matra. Read each akshar, then join them, just like blending sounds in English.</p>
-  <div class="center"><span class="pic">🦚</span><div class="dev" style="font-size:52px">मो + र = मोर</div></div>
-  <h4>Step by step</h4><ol><li>Cover the word and show one akshar at a time.</li><li>Say each akshar.</li><li>Say them faster until they join into the word.</li></ol>
-  ${eg('Example 1',`${dx('घ + र = घर')} (house).`)}${eg('Example 2',`${dx('प + तं + ग = पतंग')} (kite). The dot on ${dx('तं')} adds an "n" sound.`)}${eg('Example 3',`${dx('गु + ला + ब = गुलाब')} (rose).`)}
-  <h4>Watch out</h4><p>Don't guess from the first akshar. ${dx('गाय')} and ${dx('गाजर')} start the same way. The words here are the same in Marathi and Hindi.</p>`,
-  sets:[SET('Level 1: picture to word',()=>wPicWord(WS)),SET('Level 2: word to picture',()=>wWordPic(WS)),SET('Level 3: three-akshar words',()=>Math.random()<.5?wPicWord(WL):wWordPic(WL)),
-   SET('Find the missing part',wMiss),SET('Challenge: look-alike spellings',()=>Math.random()<.6?rWord():wPicWord(WA2))]},
- {n:7,title:'Build words',level:'Beginners',
-  learn:`<h4>The idea</h4><p>Writing a word is reading in reverse: say the word slowly, hear each akshar, and write them in order.</p>
-  <div class="center"><div class="tiles"><span class="tile">प</span><span class="tile">तं</span><span class="tile">ग</span></div><span class="pic wiggle">🪁</span></div>
-  <h4>Step by step</h4><ol><li>Say the word aloud.</li><li>Tap once for each akshar you hear.</li><li>Write the letters first, then draw the roof line across the whole word.</li></ol>
-  ${eg('Example 1',`${dx('कान')} (ear): ${dx('का')} + ${dx('न')}.`)}${eg('Example 2',`${dx('गाजर')} (carrot): ${dx('गा')} + ${dx('ज')} + ${dx('र')}.`)}${eg('Example 3',`${dx('जिराफ')} (giraffe): ${dx('जि')} + ${dx('रा')} + ${dx('फ')}.`)}
-  <h4>Watch out</h4><p>Check the matra on each akshar: ${dx('का')} and ${dx('क')} sound different.</p>`,
-  sets:[SET('Level 1: two-akshar words',()=>bld(WS,0)),SET('Level 2: with an extra tile',()=>bld(WS,1)),SET('Level 3: three-akshar words',()=>bld(WL,1)),
-   SET('Which part comes first?',wFirst),SET('Challenge: two extra tiles',()=>bld(WA2,2))]},
- {n:8,title:'Devanagari numbers',level:'Beginners',
-  learn:`<h4>The idea</h4><p>Marathi and Hindi books often write numbers in Devanagari digits. They work exactly like English digits: only the shapes are different.</p>
-  <div class="center dev pulse" style="font-size:48px"><span>०</span> <span>१</span> <span>२</span> <span>३</span> <span>४</span></div><div class="center dev" style="font-size:48px">५ ६ ७ ८ ९</div>
-  <h4>Step by step</h4><ol><li>Learn the ten shapes, five at a time.</li><li>Read bigger numbers digit by digit, just like in English.</li></ol>
-  ${eg('Example 1',`${dx('७')} is 7. ${dx('९')} is 9.`)}${eg('Example 2',`${dx('२५')} is 25: ${dx('२')} is 2 and ${dx('५')} is 5.`)}${eg('Example 3',`${dx('३ + ४')} = 7, written ${dx('७')}.`)}
-  <h4>Watch out</h4><p>${dx('१')} (1) and ${dx('९')} (9) look alike. ${dx('९')} has a loop on top.</p>`,
-  sets:[SET('Level 1: read 0 to 9',()=>nDev(0,9)),SET('Level 2: write 0 to 9',()=>nToDev(0,9)),SET('Level 3: two-digit numbers',()=>Math.random()<.5?nDev(10,99):nToDev(10,99)),
-   SET('Three-digit numbers',()=>nDev(100,999)),SET('Challenge: sums in Devanagari',nSum)]},
- {n:9,title:'Nasal and breath marks (ं ँ ः)',level:'Beginners',
-  learn:`<h4>The idea</h4><p>Three small marks sit on or beside a letter and change how it sounds.</p>
-  <div class="tw"><table><tr><th>Mark</th><th>Name</th><th>What it does</th><th>Example</th></tr>
-  <tr><td class="dbig">ं</td><td>Anusvara (अनुस्वार)</td><td>A dot on top: adds an "n" or "m" sound</td><td>${dx('पतंग')} kite, ${dx('शंख')} conch, ${dx('जंगल')} forest</td></tr>
-  <tr><td class="dbig">ँ</td><td>Chandrabindu (चंद्रबिंदू / चंद्रबिंदु)</td><td>A moon with a dot: the vowel is said through the nose</td><td>${dx('चाँद')} moon (H), ${dx('माँ')} mother (H), ${dx('आँख')} eye (H)</td></tr>
-  <tr><td class="dbig">ः</td><td>Visarga (विसर्ग)</td><td>Two dots after a letter: a soft breath "h"</td><td>${dx('दुःख')} sorrow, ${dx('प्रातः')} early morning</td></tr></table></div>
-  <h4>Step by step</h4><ol><li>Read the letter first.</li><li>Then add the mark: a dot means an "n/m" sound, a moon means a nose sound, two dots mean a breath.</li></ol>
-  ${eg('Example 1',`${dx('प + तं + ग')}: the dot on ${dx('तं')} adds "n", so it is "patang".`)}${eg('Example 2',`${dx('शंख')}: the dot on ${dx('शं')} is said "n" before ${dx('ख')}: "shankh".`)}${eg('Example 3',`${dx('दुःख')}: the two dots add a breath: "duh-kh".`)}
-  <h4>Marathi and Hindi</h4><p>Hindi often uses the moon ${dx('ँ')} for nose sounds (${dx('चाँद')}). Marathi usually writes a simple dot ${dx('ं')} instead (${dx('चांदणे')} moonlight).</p>
-  <h4>Watch out</h4><p>Don't confuse the anusvara dot with the matra ${dx('े')}: the dot is round and small, the matra is a slanting stroke.</p>`,
-  sets:[SET('Level 1: name the mark',()=>{const m=one([['ं','Anusvara'],['ँ','Chandrabindu'],['ः','Visarga']]);return txtQ(dv('क'+m[0],96),'Which mark is used here?',m[1],['Anusvara','Chandrabindu','Visarga'].filter(x=>x!==m[1]),`${m[0]} is the ${m[1].toLowerCase()}.`)}),
-   SET('Level 2: find the anusvara',()=>{const c=one(['पतंग','शंख','जंगल','अंडे','गंगा','मंगल']);return devQ('','Which word has an anusvara (dot on top)?',c,sample(['घर','मोर','बस','कप','दूध','फूल'],2),`${c} has the dot ं.`,c)}),
-   SET('Level 3: find the visarga',()=>{const c=one(['दुःख','प्रातः','अतः','पुनः']);return devQ('','Which word has a visarga (two dots)?',c,sample(['घर','तारा','पान','नाक','ढोल'],2),`${c} has the two dots ः.`,c)}),
-   SET('Read the sound',()=>{const w=one([['पतंग','patang'],['शंख','shankh'],['जंगल','jangal'],['गंगा','ganga'],['दुःख','duhkh']]);return txtQ(dv(w[0],72),'How do you say this word?',w[1],sample(['patag','shakh','jagal','gaga','dukh','pataga'].filter(x=>x!==w[1]),2),`The mark changes the sound: ${w[0]} is "${w[1]}".`,w[0])}),
-   SET('Challenge: mixed',()=>one([()=>{const m=one([['ं','Anusvara'],['ँ','Chandrabindu'],['ः','Visarga']]);return txtQ(dv('म'+m[0],96),'Which mark is used here?',m[1],['Anusvara','Chandrabindu','Visarga'].filter(x=>x!==m[1]),`${m[0]} is the ${m[1].toLowerCase()}.`)},()=>{const c=one(['पतंग','शंख','जंगल','गंगा']);return devQ('','Which word has an anusvara?',c,sample(['घर','मोर','कप','दूध'],2),`${c} has the dot ं.`,c)}])())]},
- {n:10,title:'Joint letters (जोडाक्षरे / संयुक्ताक्षर)',level:'Next step',
-  learn:`<h4>The idea</h4><p>When two consonants are said together with no vowel between them, they join into one <b>joint letter</b>. The first letter usually becomes a <b>half letter</b>. Joint letters are called <b>जोडाक्षरे</b> in Marathi and <b>संयुक्ताक्षर</b> in Hindi.</p>
-  <div class="center dev" style="font-size:56px">स् + त = स्त</div>
-  <h4>The four rules</h4><ol><li><b>Half letter:</b> a letter with a standing line drops the line: ${dx('स्')} + ${dx('त')} = ${dx('स्त')} as in ${dx('पुस्तक')} (book).</li><li><b>र first (रफार):</b> र becomes a small hook on top of the next letter: ${dx('र्')} + ${dx('म')} = ${dx('र्म')} as in ${dx('धर्म')}.</li><li><b>र second:</b> र becomes a small slanting stroke under the letter: ${dx('प्')} + ${dx('र')} = ${dx('प्र')} as in ${dx('प्रकाश')} (light).</li><li><b>Special shapes:</b> some joints have their own shape: ${dx('क्ष')} (क् + ष), ${dx('त्र')} (त् + र), ${dx('ज्ञ')} (ज् + ञ), ${dx('श्र')} (श् + र).</li></ol>
-  <h4>Common joint letters</h4><div class="tw"><table><tr><th>Joint</th><th>Made of</th><th>Example</th></tr>
-  <tr><td class="dbig">स्त</td><td>स् + त</td><td>${dx('पुस्तक')} book, ${dx('नमस्ते')}</td></tr><tr><td class="dbig">त्य</td><td>त् + य</td><td>${dx('सत्य')} truth</td></tr><tr><td class="dbig">द्य</td><td>द् + य</td><td>${dx('विद्यार्थी')} student</td></tr>
-  <tr><td class="dbig">र्य</td><td>र् + य</td><td>${dx('सूर्य')} sun</td></tr><tr><td class="dbig">द्र</td><td>द् + र</td><td>${dx('चंद्र')} moon</td></tr><tr><td class="dbig">प्र</td><td>प् + र</td><td>${dx('प्रकाश')} light</td></tr>
-  <tr><td class="dbig">त्र</td><td>त् + र</td><td>${dx('त्रिकोण')} triangle, ${dx('पत्र')} letter</td></tr><tr><td class="dbig">क्ष</td><td>क् + ष</td><td>${dx('क्षमा')} forgiveness</td></tr><tr><td class="dbig">ज्ञ</td><td>ज् + ञ</td><td>${dx('ज्ञान')} knowledge</td></tr><tr><td class="dbig">श्र</td><td>श् + र</td><td>${dx('श्रम')} hard work</td></tr></table></div>
-  ${eg('Example 1',`${dx('पु + स्त + क = पुस्तक')}: "pus-tak". The ${dx('स')} is half because no vowel comes after it.`)}${eg('Example 2',`${dx('सू + र्य = सूर्य')}: the hook on ${dx('य')} is a half ${dx('र')}, said before ${dx('य')}.`)}${eg('Example 3',`${dx('त्रि + को + ण = त्रिकोण')}: ${dx('त्र')} is त् + र.`)}
-  <h4>Watch out</h4><p>The hook on top (${dx('र्म')}) is said <b>before</b> the letter it sits on; the stroke below (${dx('प्र')}) is said <b>after</b> it.</p>`,
-  sets:[SET('Level 1: join the letters',()=>{const J=JN,j=one(J);return devQ(`<span class="wordbig dev">${j[0]} + ${j[1]}</span>`,'What joint letter do they make?',j[2],sample(J.filter(x=>x!==j),2).map(x=>x[2]),`${j[0]} + ${j[1]} = ${j[2]}.`)}),
-   SET('Level 2: break it apart',()=>{const j=one(JN);return txtQ(dv(j[2],96),'Which letters make this joint letter?',`${j[0]} + ${j[1]}`,sample(JN.filter(x=>x!==j),2).map(x=>`${x[0]} + ${x[1]}`),`${j[2]} = ${j[0]} + ${j[1]}.`)}),
-   SET('Level 3: find it in a word',()=>{const w=one(JW);return devQ(dv(w[0],60)+(w[2]?`<span class="pic">${w[2]}</span>`:''),'Which joint letter is in this word?',w[1],sample(JN.map(x=>x[2]).filter(x=>x!==w[1]),2),`${w[0]} has ${w[1]}.`,w[0])}),
-   SET('Build the word',()=>{const w=one(JB);return{kind:'build',show:(w[2]?`<span class="pic">${w[2]}</span>`:'')+`<p class="muted">${w[3]}</p>`,ask:'Tap the parts in order to write the word.',say:w[0],lang:'hi-IN',tiles:shuffle([...w[1],...sample(['क','म','प्र','स्त','र','ना'].filter(x=>w[1].indexOf(x)<0),1)]),target:w[1],ah:dv(w[0],56),hint:`${w[1].join(' + ')} = ${w[0]}.`}}),
-   SET('Challenge: mixed',()=>one([()=>{const j=one(JN);return devQ(`<span class="wordbig dev">${j[0]} + ${j[1]}</span>`,'What joint letter do they make?',j[2],sample(JN.filter(x=>x!==j),2).map(x=>x[2]),`${j[0]} + ${j[1]} = ${j[2]}.`)},()=>{const w=one(JW);return devQ(dv(w[0],60),'Which joint letter is in this word?',w[1],sample(JN.map(x=>x[2]).filter(x=>x!==w[1]),2),`${w[0]} has ${w[1]}.`,w[0])}])())]}
-];
-const JN=[['स्','त','स्त'],['त्','य','त्य'],['द्','य','द्य'],['र्','य','र्य'],['द्','र','द्र'],['प्','र','प्र'],['त्','र','त्र'],['क्','ष','क्ष'],['ज्','ञ','ज्ञ'],['श्','र','श्र'],['र्','म','र्म'],['स्','थ','स्थ'],['च्','च','च्च'],['म्','ब','म्ब']];
-const JW=[['पुस्तक','स्त','📖'],['नमस्ते','स्त','🙏'],['सत्य','त्य',''],['विद्यार्थी','द्य','🧑‍🎓'],['सूर्य','र्य','☀️'],['चंद्र','द्र','🌙'],['प्रकाश','प्र','💡'],['त्रिकोण','त्र','🔺'],['पत्र','त्र','✉️'],['क्षमा','क्ष',''],['ज्ञान','ज्ञ',''],['श्रम','श्र',''],['धर्म','र्म','']];
-const JB=[['पुस्तक',['पु','स्त','क'],'📖','book'],['नमस्ते',['न','म','स्ते'],'🙏','namaste'],['सूर्य',['सू','र्य'],'☀️','sun'],['पत्र',['प','त्र'],'✉️','letter'],['त्रिकोण',['त्रि','को','ण'],'🔺','triangle'],['चंद्र',['चं','द्र'],'🌙','moon'],['प्रकाश',['प्र','का','श'],'💡','light']];
-const BGUIDE=[
-['How to use this module',`<p>Built for beginners and for children from non-Marathi homes, from Grade 1 up. Marathi and Hindi share the Devanagari script, so the letters, matras and reading skills here work for both. The picture words chosen are the same in both languages.</p>
-<h4>Order</h4><ol><li>Vowels and consonants by sound</li><li>Look-alike letters</li><li>Matras on one consonant, then all</li><li>Short and long matras</li><li>Reading and building two- and three-part words</li><li>Devanagari numbers, whenever the school book uses them</li></ol>
-<h4>Rules</h4><ul><li>Sound first: say the letter before showing it.</li><li>One family of letters a week, with lots of oral practice.</li><li>Every lesson ends with the child reading something successfully.</li></ul>`],
-['Vowels (स्वर)',`<p>Teach in pairs of short and long: <span class="dev">अ आ, इ ई, उ ऊ</span>, then <span class="dev">ए ऐ, ओ औ</span>. Add <span class="dev">अं अः</span> later.</p>
-<h4>Activities</h4><ul><li>Sound and stretch: clap once for short, stretch the arms for long.</li><li>Sand tray tracing while saying the sound.</li><li>Vowel bingo with cards.</li></ul>
-<h4>Watch for</h4><p>Children from English-medium schools reading <span class="dev">अ</span> as "ae". Remind them it is the short "a" in "about".</p>`],
-['Consonants by family (व्यंजन)',`<p>Teach by mouth position, not just in alphabet order, so the sounds make sense.</p>
-<ul><li>Throat: <span class="dev">क ख ग घ ङ</span></li><li>Palate: <span class="dev">च छ ज झ ञ</span></li><li>Tongue curled back (hard): <span class="dev">ट ठ ड ढ ण</span></li><li>Tongue on teeth (soft): <span class="dev">त थ द ध न</span></li><li>Lips: <span class="dev">प फ ब भ म</span></li><li>Others: <span class="dev">य र ल व श ष स ह</span>, and <span class="dev">ळ</span> in Marathi</li></ul>
-<h4>Breathy letters</h4><p>Each family has plain and "breathy" pairs (<span class="dev">क/ख, ग/घ</span>). Hold a paper strip in front of the mouth: it moves for the breathy one.</p>
-<h4>Hard and soft t, d</h4><p><span class="dev">ट/त</span> and <span class="dev">ड/द</span> are hard for English speakers. Hard: tongue curls back. Soft: tongue touches the teeth.</p>`],
-['Look-alike letters',`<ul><li><span class="dev">घ / ध</span> and <span class="dev">म / भ</span>: the second has a gap in its roof.</li><li><span class="dev">ख / रव</span>: <span class="dev">ख</span> is joined in one piece.</li><li><span class="dev">ब / व</span>: <span class="dev">ब</span> has a line inside.</li><li><span class="dev">प / ष</span>: <span class="dev">ष</span> has a line across.</li></ul>
-<p>Practise one pair a day: write both, circle the difference in colour, then sort word cards.</p>`],
-['Matras and बाराखडी / बारहखड़ी',`<p>Teach every matra with <span class="dev">क</span> first, then the same chart with <span class="dev">ग, म, न, स</span>. Children quickly see the sign does the same job on every letter.</p>
-<h4>Where each sign sits</h4><ul><li><span class="dev">ा</span> after the letter</li><li><span class="dev">ि</span> before the letter (said after it)</li><li><span class="dev">ी</span> after the letter</li><li><span class="dev">ु ू</span> below</li><li><span class="dev">े ै</span> above</li><li><span class="dev">ो ौ</span> after, with a mark above</li></ul>
-<h4>Watch for</h4><p>Reading <span class="dev">कि</span> as "ik" because the sign comes first. Say: "the sign stands in front, but the letter speaks first".</p>`],
-['Nasal and breath marks',`<ul><li><b>Anusvara ं</b>: a dot that adds n/m before the next letter (<span class="dev">पतंग, शंख</span>).</li><li><b>Chandrabindu ँ</b>: a nasal vowel, common in Hindi (<span class="dev">चाँद, माँ</span>); Marathi usually writes a dot instead.</li><li><b>Visarga ः</b>: a soft breath (<span class="dev">दुःख</span>).</li></ul><p>Teach by contrast: say <span class="dev">पतग</span> and <span class="dev">पतंग</span> aloud and let the child hear the difference.</p>`],
-['Joint letters',`<p>Start only once matras are secure. Teach the four rules one at a time: half letters (<span class="dev">स्त</span>), र on top (<span class="dev">र्म</span>), र below (<span class="dev">प्र</span>), and special shapes (<span class="dev">क्ष त्र ज्ञ श्र</span>). Have the child underline joint letters in their textbook and say each part aloud. Note that <span class="dev">ज्ञ</span> is said "dnya" in Marathi and "gya" in Hindi.</p>`],
-['Short and long sounds',`<p>The most common spelling mistakes in both languages are <span class="dev">ि/ी</span> and <span class="dev">ु/ू</span>.</p><ul><li>Clap once for short, hold the sound for long.</li><li>Practise minimal pairs aloud from the child's own textbook.</li><li>When the child writes a word, ask "short or long?" before they write the matra.</li></ul>`],
-['Reading and writing words',`<ul><li>Break words into akshars: <span class="dev">प | तं | ग</span>.</li><li>Read each akshar, then join: like blending in English.</li><li>Writing order: write the letters first, then draw the roof line (शिरोरेखा) across the whole word.</li><li>Move to short sentences from the school book once two-akshar words are easy.</li></ul>`],
-['Where Marathi and Hindi differ',`<ul><li><b>Extra letter:</b> Marathi uses <span class="dev">ळ</span> (<span class="dev">शाळा, बाळ</span>).</li><li><b>Same word, different spelling:</b> Marathi <span class="dev">पाणी</span>, Hindi <span class="dev">पानी</span> (water).</li><li><b>Different words:</b> mother is <span class="dev">आई</span> in Marathi and <span class="dev">माँ</span> in Hindi; mango is <span class="dev">आंबा</span> and <span class="dev">आम</span>.</li><li><b>English loan sounds:</b> Marathi writes the "a" of "bat" as <span class="dev">ॅ</span> (<span class="dev">बॅट</span>).</li><li><b>Nasal sounds:</b> Hindi often uses <span class="dev">ँ</span> where Marathi uses <span class="dev">ं</span>.</li></ul>
-<p>Teach the shared script once, then use the child's own school book for the language-specific words and spellings.</p>`],
-['For children from non-Marathi homes',`<ul><li>Parents may not be able to help, so give 5-minute home tasks that need no Marathi: tracing, matching picture cards, listening to a recording.</li><li>Build spoken vocabulary alongside reading: 5 everyday words a week with pictures.</li><li>Use English sounds as a bridge only at first; move to Devanagari sounds quickly.</li><li>Celebrate reading the first full sentence; it is a big moment for these children.</li></ul>`],
-['A 12-week beginner track',`<p>Weeks 1–2: vowels · Weeks 3–6: consonants, one family a week, look-alikes as they appear · Weeks 7–9: matras with <span class="dev">क</span>, then all letters · Week 10: short and long · Weeks 11–12: reading and writing two- and three-akshar words, first sentences. Devanagari numbers alongside, whenever the school book uses them.</p>`]];
-MODS.bhasha={name:'Marathi & Hindi',title:'Marathi & Hindi: reading and writing',key:'bh',ch:BH,guide:BGUIDE,gnote:'A quick reference for teaching Devanagari reading and writing to beginners. The Kids’ self study has 10 chapters in the same order, each with a full concept page and 50 practice questions. Picture words are the same in Marathi and Hindi; the last guide sections cover where the two languages differ.'};
+MODS.bhasha={name:'Marathi & Hindi',title:'Marathi & Hindi: reading and writing',key:'bh',ch:null,guide:null,src:'mod-bhasha.js',n:10,gnote:'A quick reference for teaching Devanagari reading and writing to beginners. The Kids’ self study has 10 chapters in the same order, each with a full concept page and 50 practice questions. Picture words are the same in Marathi and Hindi; the last guide sections cover where the two languages differ.'};
 
 /* ====== English grammar, Grade 3+ ====== */
 const uniq=a=>a.filter((x,i)=>a.indexOf(x)===i);
@@ -1086,120 +825,9 @@ const POSS=[['Riya','bag'],['Kabir','kite'],['the dog','bone'],['Meera','book'],
 const CJ=[['I was hungry, ___ I ate a banana.','so'],['I stayed at home ___ I was sick.','because'],['She is small, ___ she is very strong.','but'],['Do you want tea ___ milk?','or'],['Riya ___ Meera are sisters.','and'],['It was raining, ___ we took umbrellas.','so'],['He was late ___ he missed the bus.','because'],['I like mangoes, ___ I do not like bananas.','but'],['We can play cricket ___ football.','or'],['I washed my hands ___ ate my lunch.','and'],['The shop was closed, ___ we went home.','so'],['She smiled ___ she was happy.','because'],['The test was hard, ___ I passed.','but'],['Would you like rice ___ chapati?','or'],['Kabir sings ___ dances well.','and']];
 const CJJ=[['I was tired.','I went to bed.','so'],['I was tired.','I finished my homework.','but'],['I went to bed.','I was tired.','because'],['It was cold.','I wore a sweater.','so'],['We wanted to play.','It started raining.','but'],['She laughed.','The joke was funny.','because'],['The road was wet.','It had rained.','because'],['I studied hard.','I did well in the test.','so']];
 const lc=s=>s[0].toLowerCase()+s.slice(1);
-const GR=[
- {n:1,title:'Nouns',level:'Grade 3 and up',
-  learn:`<h4>The idea</h4><p>A <b>noun</b> is a naming word. It names a <b>person</b> (teacher, Meera), a <b>place</b> (school, Pune), an <b>animal</b> (dog) or a <b>thing</b> (pencil).</p>
-  <h4>Common and proper nouns</h4><p>A <b>common noun</b> names any one of a kind: <i>city, girl, river</i>. A <b>proper noun</b> names one special person, place or thing, and always starts with a <b>capital letter</b>: <i>Pune, Meera, Ganga, Monday</i>.</p>
-  <h4>Singular and plural</h4><div class="tw"><table><tr><th>Rule</th><th>Examples</th></tr><tr><td>Most words: add <b>-s</b></td><td>book → books, pen → pens</td></tr><tr><td>Ends in s, sh, ch, x, o: add <b>-es</b></td><td>bus → buses, dish → dishes, watch → watches, box → boxes, tomato → tomatoes</td></tr><tr><td>Consonant + y: change y to <b>-ies</b></td><td>baby → babies, city → cities</td></tr><tr><td>Vowel + y: just add <b>-s</b></td><td>toy → toys, day → days</td></tr><tr><td>Ends in f or fe: often <b>-ves</b></td><td>leaf → leaves, knife → knives</td></tr><tr><td>Special plurals: learn by heart</td><td>child → children, man → men, tooth → teeth, mouse → mice, sheep → sheep</td></tr></table></div>
-  ${eg('Example 1: find the noun','"The happy <b>girl</b> sang." <i>Girl</i> names a person, so it is the noun. <i>Happy</i> describes her; <i>sang</i> is what she did.')}${eg('Example 2: proper noun','"we went to <b>pune</b>" should be "We went to <b>Pune</b>." Pune is the name of one city.')}${eg('Example 3: plurals','one baby, two <b>babies</b>; one toy, two <b>toys</b>; one child, two <b>children</b>.')}
-  <h4>Watch out</h4><p>Some nouns stay the same in the plural: one sheep, ten sheep; one fish, three fish.</p>`,
-  sets:[SET('Level 1: find the noun',()=>{const n=one(NOUNS),a=one(ADJS),v=one(VERBS);return gQ(`The ${a} ${n} ${v}.`,'Which word is the noun?',n,[a,v],`"${n}" names a person or animal. "${a}" describes it and "${v}" is the action.`)}),
-   SET('Level 2: common or proper?',()=>{const p=Math.random()<.5,w=p?one(PROPER):one(COMMON);return gQ('',`Is "${w}" a common noun or a proper noun?`,p?'Proper noun':'Common noun',[p?'Common noun':'Proper noun'],p?`"${w}" names one special person, place or thing, so it is proper and starts with a capital.`:`"${w}" names any one of a kind, so it is common.`)}),
-   SET('Level 3: plurals with -s, -es, -ies, -ves',()=>{const[s,p]=one(PLR);return gQ('',`What is the plural of "${s}"?`,p,wrongPl(s),`${s} → ${p}.`)}),
-   SET('Special plurals',()=>{const[s,p]=one(IRR);return gQ('',`What is the plural of "${s}"?`,p,[s+'s',s+'es',p+'s'].filter(x=>x!==p),`${s} → ${p}. Special plurals are learned by heart.`)}),
-   SET('Challenge: plurals in sentences',()=>{const[s,p]=one(PLR.concat(IRR));return gQ(`There are three ___ in the picture.`,`Which word fits? (${s})`,p,wrongPl(s).concat([s]),`More than one ${s} is ${p}.`)})]},
- {n:2,title:'Pronouns',level:'Grade 3 and up',
-  learn:`<h4>The idea</h4><p>A <b>pronoun</b> takes the place of a noun, so we don't repeat the same name again and again. "Meera has a cat. <b>She</b> loves <b>it</b>."</p>
-  <div class="tw"><table><tr><th>Doing the action</th><th>Receiving the action</th><th>Owning something</th></tr><tr><td>I</td><td>me</td><td>my / mine</td></tr><tr><td>you</td><td>you</td><td>your / yours</td></tr><tr><td>he</td><td>him</td><td>his</td></tr><tr><td>she</td><td>her</td><td>her / hers</td></tr><tr><td>it</td><td>it</td><td>its</td></tr><tr><td>we</td><td>us</td><td>our / ours</td></tr><tr><td>they</td><td>them</td><td>their / theirs</td></tr></table></div>
-  ${eg('Example 1','"Kabir is tall. <b>He</b> plays basketball." He = Kabir.')}${eg('Example 2','"This book is Riya’s. Give it to <b>her</b>." After a word like <i>to</i> or <i>with</i>, use me, him, her, us, them.')}${eg('Example 3','"Siya and I are friends. <b>We</b> walk to school together."')}${eg('Example 4','"The birds are singing. <b>They</b> are happy." Use <i>it</i> for one thing or animal, <i>they</i> for more than one.')}
-  <h4>Watch out</h4><p><b>its</b> (belonging) has no apostrophe: "The dog wagged its tail." <b>it’s</b> means "it is".</p>`,
-  sets:[SET('Level 1: he or she?',()=>{const b=Math.random()<.5,n=one(b?BOYS:GIRLS);return gQ(`${n} is reading. ___ likes stories.`,'Which pronoun fits?',b?'He':'She',[b?'She':'He','It','They'],`${n} is a ${b?'boy, so we use He':'girl, so we use She'}.`)}),
-   SET('Level 2: him, her, them',()=>{const k=one([['b',BOYS],['g',GIRLS],['p',null]]);if(k[0]==='p'){const a=one(BOYS),c=one(GIRLS);return gQ(`These gifts are for ${a} and ${c}. Please give the gifts to ___.`,'Which pronoun fits?','them',['they','their','him'],`More than one person, after "to": them.`)}const n=one(k[1]),b=k[0]==='b';return gQ(`This bag belongs to ${n}. Please give it to ___.`,'Which pronoun fits?',b?'him':'her',b?['he','his','her']:['she','hers','him'],`After "to" we use ${b?'him':'her'}.`)}),
-   SET('Level 3: we and they',()=>{if(Math.random()<.5){const n=one(BOYS.concat(GIRLS));return gQ(`${n} and I are in the same class. ___ sit together.`,'Which pronoun fits?','We',['They','Us','I'],`"${n} and I" includes me, so we use We.`)}const a=one(BOYS),c=one(GIRLS);return gQ(`${a} and ${c} are cousins. ___ live in Pune.`,'Which pronoun fits?','They',['We','Them','He'],'Two other people: They.')}),
-   SET('Owning: his, her, their, its',()=>{const k=rnd(0,3);if(k===0){const n=one(BOYS);return gQ(`This is ${n}’s pencil. It is ___ pencil.`,'Which word fits?','his',['him','he','her'],'Something that belongs to a boy: his.')}if(k===1){const n=one(GIRLS);return gQ(`This is ${n}’s pencil. It is ___ pencil.`,'Which word fits?','her',['she','hers','his'],'Something that belongs to a girl: her (before the noun).')}if(k===2)return gQ('The children packed ___ bags.','Which word fits?','their',['there','they','them'],'Belonging to them: their.');return gQ('The dog wagged ___ tail.','Which word fits?','its',['it’s','it','his'],'Belonging to it: its, with no apostrophe.')}),
-   SET('Challenge: it or they, and more',()=>{const T=[['The kite is stuck in the tree. ___ is red.','It',['They','He']],['The mangoes are ripe. ___ taste sweet.','They',['It','Them']],['My grandmother tells stories. I love ___ stories.','her',['she','hers']],['Aarav and I won the match. The coach praised ___.','us',['we','our']],['The puppy is hungry. ___ wants milk.','It',['They','She']],['That pen is not yours. It is ___.','mine',['me','my']],['Please call Kabir. I need to talk to ___.','him',['he','his']]];const t=one(T);return gQ(t[0],'Which word fits?',t[1],t[2],`The answer is "${t[1]}".`)})]},
- {n:3,title:'Verbs and tenses',level:'Grade 3 and up',
-  learn:`<h4>The idea</h4><p>A <b>verb</b> is a doing word: <i>run, eat, write, sing</i>. <i>Is, am, are, was, were</i> are verbs too. The <b>tense</b> of a verb tells us <b>when</b> something happens.</p>
-  <div class="tw"><table><tr><th>Tense</th><th>When</th><th>Example</th><th>Clue words</th></tr><tr><td>Simple present</td><td>Habits, facts</td><td>Riya <b>plays</b> every day.</td><td>every day, always, usually</td></tr><tr><td>Present continuous</td><td>Happening right now</td><td>Riya <b>is playing</b> now.</td><td>now, look!, at the moment</td></tr><tr><td>Simple past</td><td>Already finished</td><td>Riya <b>played</b> yesterday.</td><td>yesterday, last week, ago</td></tr><tr><td>Simple future</td><td>Not yet happened</td><td>Riya <b>will play</b> tomorrow.</td><td>tomorrow, next week, soon</td></tr></table></div>
-  <h4>Rules to remember</h4><ul><li>Present with he, she, it or one name: add <b>-s</b> (plays), or <b>-es</b> after s, sh, ch, x, o (catches, goes).</li><li>Regular past: add <b>-ed</b> (walked, cleaned).</li><li>Irregular past: learn by heart: go → went, eat → ate, write → wrote, buy → bought.</li><li>Future: <b>will</b> + the plain verb (will go, never "will goes").</li></ul>
-  ${eg('Example 1','"Every day, Kabir <b>goes</b> to school." Every day is a habit, so simple present.')}${eg('Example 2','"Yesterday, Meera <b>ate</b> an apple." Yesterday is finished, so simple past. Not "eated".')}${eg('Example 3','"Look! Siya <b>is swimming</b>." Happening now: is + -ing. Note the double m.')}
-  <h4>Watch out</h4><p>Look for the clue word first: it tells you the tense.</p>`,
-  sets:[SET('Level 1: simple present',()=>{const v=one(V),n=nm();return gQ(`Every day, ${n} ___ ${v[4]}.`,'Which verb fits?',v[1],[v[0],v[2],v[3]],`"Every day" is a habit. With one person, add -s or -es: ${v[1]}.`)}),
-   SET('Level 2: simple past',()=>{const v=one(V.filter(x=>x[0]!=='read')),n=nm();return gQ(`Yesterday, ${n} ___ ${v[4]}.`,'Which verb fits?',v[2],[v[0],v[1],v[0]+'ed'],`"Yesterday" is finished, so past tense: ${v[0]} → ${v[2]}.`)}),
-   SET('Level 3: present continuous',()=>{const v=one(V),n=nm();return gQ(`Look! ${n} is ___ ${v[4]} right now.`,'Which verb fits?',v[3],[v[0],v[1],v[2]],`Happening now: is + ${v[3]}.`)}),
-   SET('Simple future',()=>{const v=one(V),n=nm();return gQ(`Tomorrow, ${n} ___ ${v[4]}.`,'Which verb fits?','will '+v[0],['will '+v[1],v[2],v[1]],`"Tomorrow" is the future: will + ${v[0]}.`)}),
-   SET('Challenge: read the clue word',()=>{const v=one(V.filter(x=>x[0]!=='read')),n=nm(),k=rnd(0,3),C=[['Every day',v[1],'habit, simple present'],['Last Sunday',v[2],'finished, simple past'],['Next week',`will ${v[0]}`,'future: will + verb'],['At the moment,',`is ${v[3]}`,'happening now: is + -ing']][k];
-     return gQ(`${C[0]} ${n} ___ ${v[4]}.`,'Which verb fits?',C[1],[v[1],v[2],`will ${v[0]}`,`is ${v[3]}`],`"${C[0].replace(',','')}" means ${C[2]}: ${C[1]}.`)})]},
- {n:4,title:'Adjectives and adverbs',level:'Grade 3 and up',
-  learn:`<h4>The idea</h4><p>An <b>adjective</b> describes a noun: a <b>tall</b> tree, a <b>red</b> kite. An <b>adverb</b> describes a verb, telling <b>how</b> something is done: she sings <b>sweetly</b>.</p>
-  <h4>Comparing</h4><div class="tw"><table><tr><th>Word</th><th>Comparing two (-er)</th><th>Comparing three or more (-est)</th></tr><tr><td>tall</td><td>taller</td><td>tallest</td></tr><tr><td>big</td><td>bigger (double the g)</td><td>biggest</td></tr><tr><td>happy</td><td>happier (y → i)</td><td>happiest</td></tr><tr><td>beautiful</td><td>more beautiful</td><td>most beautiful</td></tr><tr><td>good</td><td>better</td><td>best</td></tr><tr><td>bad</td><td>worse</td><td>worst</td></tr></table></div>
-  <h4>Making adverbs</h4><p>Most adverbs add <b>-ly</b> to an adjective: quick → quickly, careful → carefully, happy → happily. The special one: good → <b>well</b>.</p>
-  ${eg('Example 1','"Riya is <b>taller</b> than Kabir." Two people, so -er + than.')}${eg('Example 2','"Everest is the <b>highest</b> mountain in the world." Comparing many, so the + -est.')}${eg('Example 3','"Kabir writes <b>neatly</b>." <i>Neatly</i> tells how he writes.')}
-  <h4>Watch out</h4><p>Never use both: "more taller" and "most biggest" are wrong. Long words take more/most; short words take -er/-est.</p>`,
-  sets:[SET('Level 1: find the adjective',()=>{const n=one(NOUNS),a=one(ADJS),v=one(VERBS);return gQ(`The ${a} ${n} ${v}.`,'Which word is the adjective?',a,[n,v],`"${a}" describes the ${n}.`)}),
-   SET('Level 2: comparing two',()=>{const a=one(ADJC),s=a[3]==='p'?`${one(GIRLS)} is ___ than ${one(BOYS)}.`:`This box is ___ than that box.`;return gQ(s,`Which word fits? (${a[0]})`,a[1],cmpWrong(a,a[1]),`Comparing two things: ${a[0]} → ${a[1]}.`)}),
-   SET('Level 3: comparing many',()=>{const a=one(ADJC),s=a[3]==='p'?`${one(GIRLS)} is the ___ in the class.`:`This is the ___ box of all.`;return gQ(s,`Which word fits? (${a[0]})`,a[2],cmpWrong(a,a[2]).concat([a[1]]),`Comparing three or more: the ${a[2]}.`)}),
-   SET('Adverbs: how is it done?',()=>{const a=one(ADV),n=nm();return gQ(`${n} ${a[2]} ___.`,`Which word fits? (${a[0]})`,a[1],[a[0],a[0]+'er',a[0]==='good'?'goodly':a[0]+'est'],`It tells how ${n} ${a[2]}: ${a[1]}.`)}),
-   SET('Challenge: mixed',()=>{const k=rnd(0,2);if(k===0){const a=one(ADJC);return gQ(`Of the three bags, this one is the ___.`,`Which word fits? (${a[0]})`,a[2],cmpWrong(a,a[2]).concat([a[1]]),`Three or more: the ${a[2]}.`)}if(k===1){const a=one(ADJC);return gQ(`My kite is ___ than yours.`,`Which word fits? (${a[0]})`,a[1],cmpWrong(a,a[1]),`Two things: ${a[1]}.`)}const a=one(ADV);return gQ(`Please do your work ___.`,`Which word fits? (${a[0]})`,a[1],[a[0],a[0]+'er'],`It tells how to do the work: ${a[1]}.`)})]},
- {n:5,title:'Articles: a, an, the',level:'Grade 3 and up',
-  learn:`<h4>The idea</h4><p><b>A</b> and <b>an</b> mean "one, any one". <b>The</b> means one particular thing that we both know about.</p>
-  <h4>A or an?</h4><p>It depends on the <b>sound</b>, not the letter. Use <b>an</b> before a vowel <b>sound</b> (a, e, i, o, u): <i>an apple, an egg, an umbrella</i>. Use <b>a</b> before a consonant sound: <i>a ball, a mango</i>.</p><div class="tw"><table><tr><th>Tricky word</th><th>Why</th></tr><tr><td><b>an</b> hour, <b>an</b> honest boy</td><td>The h is silent; the word starts with a vowel sound.</td></tr><tr><td><b>a</b> uniform, <b>a</b> unicorn, <b>a</b> university</td><td>The u sounds like "you", a consonant sound.</td></tr><tr><td><b>a</b> one-rupee coin</td><td>"One" starts with a "w" sound.</td></tr></table></div>
-  <h4>When to use the</h4><ul><li>Something already mentioned: "I have a dog. <b>The</b> dog is brown."</li><li>Only one exists: <b>the</b> sun, <b>the</b> moon, <b>the</b> earth.</li><li>Rivers, mountain ranges and oceans: <b>the</b> Ganga, <b>the</b> Himalayas.</li><li>With -est words: <b>the</b> tallest boy.</li></ul>
-  ${eg('Example 1','"I ate <b>an</b> idli and <b>a</b> banana."')}${eg('Example 2','"We waited for <b>an</b> hour." The h is silent.')}${eg('Example 3','"<b>The</b> sun rises in the east." There is only one sun.')}
-  <h4>Watch out</h4><p>Don't use a or an with names of people or cities: "I live in Pune", not "a Pune".</p>`,
-  sets:[SET('Level 1: a or an?',()=>{const an=Math.random()<.5,w=an?one(AN.slice(0,10)):one(A1.slice(0,8));return gQ(`___ ${w}`,'A or an?',an?'an':'a',[an?'a':'an'],an?`"${w}" starts with a vowel sound, so "an".`:`"${w}" starts with a consonant sound, so "a".`)}),
-   SET('Level 2: a or an in sentences',()=>{const an=Math.random()<.5,w=an?one(AN.slice(0,10)):one(A1.slice(0,8));return gQ(`I can see ___ ${w} in the picture.`,'A or an?',an?'an':'a',[an?'a':'an'],an?`"${w}" starts with a vowel sound: an.`:`"${w}" starts with a consonant sound: a.`)}),
-   SET('Level 3: when to use the',()=>{const t=one(THE);return gQ(t[0],'Which word fits?',t[1],t[1]==='The'?['A','An']:['a','an'],'Use "the" for something particular, already mentioned, or the only one.')}),
-   SET('Tricky sounds',()=>{const an=Math.random()<.4,w=an?one(['hour','honest boy','umbrella','idli','owl']):one(['uniform','unicorn','university','one-rupee coin','useful book']);return gQ(`___ ${w}`,'A or an?',an?'an':'a',[an?'a':'an'],an?`"${w}" begins with a vowel sound.`:`"${w}" begins with a "y" or "w" sound, which is a consonant sound.`)}),
-   SET('Challenge: mixed',()=>Math.random()<.4?(t=>gQ(t[0],'Which word fits?',t[1],t[1]==='The'?['A','An']:['a','an'],'Use "the" for something particular or the only one.'))(one(THE)):(()=>{const an=Math.random()<.5,w=an?one(AN):one(A1);return gQ(`I saw ___ ${w} today.`,'A or an?',an?'an':'a',[an?'a':'an'],`Decide by the first sound of "${w}".`)})())]},
- {n:6,title:'Prepositions',level:'Grade 3 and up',
-  learn:`<h4>The idea</h4><p>A <b>preposition</b> shows where something is, when something happens, or where something moves.</p>
-  <h4>Place</h4><p><b>in</b> (inside), <b>on</b> (touching the top), <b>under</b>, <b>behind</b>, <b>in front of</b>, <b>between</b> (in the middle of two), <b>over</b> (above).</p>
-  <h4>Time</h4><div class="tw"><table><tr><th>Word</th><th>Used with</th><th>Examples</th></tr><tr><td>at</td><td>clock times, night</td><td>at 8 o’clock, at night</td></tr><tr><td>on</td><td>days and dates</td><td>on Monday, on 15 August</td></tr><tr><td>in</td><td>months, seasons, years, parts of the day</td><td>in May, in summer, in 2026, in the morning</td></tr></table></div>
-  <h4>Movement</h4><p><b>into</b> (going inside), <b>out of</b>, <b>across</b> (from one side to the other), <b>through</b> (in one end and out the other), <b>up</b>, <b>down</b>.</p>
-  ${eg('Example 1','"The fish swims <b>in</b> the water."')}${eg('Example 2','"School starts <b>at</b> 8 o’clock <b>on</b> Monday <b>in</b> June."')}${eg('Example 3','"The frog jumped <b>into</b> the pond." Into shows movement inside.')}
-  <h4>Watch out</h4><p><b>in</b> is where something is; <b>into</b> is moving to the inside. "The fish is in the bowl." "The fish jumped into the bowl."</p>`,
-  sets:[SET('Level 1: place',()=>{const t=one(PPLACE);return gQ(t[0],'Which word fits?',t[1],t[2],`"${t[1]}" shows the place.`)}),
-   SET('Level 2: time (at, on, in)',()=>{const t=one(PTIME);return gQ(t[0],'Which word fits?',t[1],t[2],t[1]==='at'?'"at" for clock times and night.':t[1]==='on'?'"on" for days and dates.':'"in" for months, seasons and parts of the day.')}),
-   SET('Level 3: movement',()=>{const t=one(PMOVE);return gQ(t[0],'Which word fits?',t[1],t[2],`"${t[1]}" shows the movement.`)}),
-   SET('Mixed: place and time',()=>{const t=one(PPLACE.concat(PTIME));return gQ(t[0],'Which word fits?',t[1],t[2],`The answer is "${t[1]}".`)}),
-   SET('Challenge: all prepositions',()=>{const t=one(PPLACE.concat(PTIME,PMOVE));return gQ(t[0],'Which word fits?',t[1],t[2],`The answer is "${t[1]}".`)})]},
- {n:7,title:'Subject and verb agreement',level:'Grade 4 and up',
-  learn:`<h4>The idea</h4><p>The <b>subject</b> (who or what the sentence is about) and the <b>verb</b> must agree. One person or thing takes a singular verb; more than one takes a plural verb.</p>
-  <div class="tw"><table><tr><th>One (singular)</th><th>More than one (plural)</th></tr><tr><td>The dog <b>is</b> happy.</td><td>The dogs <b>are</b> happy.</td></tr><tr><td>Kabir <b>has</b> a bike.</td><td>Kabir and Siya <b>have</b> bikes.</td></tr><tr><td>She <b>likes</b> mangoes.</td><td>They <b>like</b> mangoes.</td></tr><tr><td>The bus <b>was</b> late.</td><td>The buses <b>were</b> late.</td></tr></table></div>
-  <h4>Special ones</h4><ul><li><b>I am</b>, <b>you are</b>, <b>we are</b>, <b>they are</b>.</li><li><b>I</b> and <b>you</b> take the plain verb: I like, you play.</li><li><b>Everyone</b> is singular: "Everyone <b>is</b> here."</li><li>Two names joined by <b>and</b> are plural: "Riya and Meera <b>are</b> friends."</li></ul>
-  ${eg('Example 1','"The children <b>play</b> outside." Children is plural, so no -s on the verb.')}${eg('Example 2','"My sister <b>does</b> her homework." One person: does.')}
-  <h4>Watch out</h4><p>Find the real subject first. In "The box of pencils <b>is</b> on the desk", the subject is the box (one), not the pencils.</p>`,
-  sets:[SET('Level 1: is or are',()=>{const p=Math.random()<.5,s=p?one(PLS):one(SG),v=AGR[0];return gQ(`${s} ___ ${v[2]}`,'Which verb fits?',p?v[1]:v[0],[p?v[0]:v[1],'am'],p?`"${s}" is more than one: ${v[1]}.`:`"${s}" is one: ${v[0]}.`)}),
-   SET('Level 2: has or have, was or were',()=>{const p=Math.random()<.5,s=p?one(PLS):one(SG),v=one([AGR[1],AGR[4]]);return gQ(`${s} ___ ${v[2]}`,'Which verb fits?',p?v[1]:v[0],[p?v[0]:v[1]],p?`"${s}" is more than one: ${v[1]}.`:`"${s}" is one: ${v[0]}.`)}),
-   SET('Level 3: action verbs',()=>{const p=Math.random()<.5,s=p?one(PLS):one(SG),v=one([AGR[2],AGR[3],AGR[5],AGR[6]]);return gQ(`${s} ___ ${v[2]}`,'Which verb fits?',p?v[1]:v[0],[p?v[0]:v[1]],p?`"${s}" is more than one: no -s, so ${v[1]}.`:`"${s}" is one: add -s, so ${v[0]}.`)}),
-   SET('I, you, everyone',()=>{const T=[['I ___ happy today.','am',['is','are']],['You ___ my best friend.','are',['is','am']],['Everyone ___ ready for the trip.','is',['are','am']],['I ___ mangoes.','like',['likes','liking']],['You ___ very well.','sing',['sings','singing']],['We ___ in the same class.','are',['is','am']],['I ___ a new pencil box.','have',['has','haves']]];const t=one(T);return gQ(t[0],'Which verb fits?',t[1],t[2],`The answer is "${t[1]}".`)}),
-   SET('Challenge: mixed',()=>{const p=Math.random()<.5,s=p?one(PLS):one(SG),v=one(AGR);return gQ(`${s} ___ ${v[2]}`,'Which verb fits?',p?v[1]:v[0],[p?v[0]:v[1]],p?`"${s}" is more than one: ${v[1]}.`:`"${s}" is one: ${v[0]}.`)})]},
- {n:8,title:'Punctuation and sentence types',level:'Grade 3 and up',
-  learn:`<h4>The idea</h4><p>Punctuation marks help the reader know where a sentence ends and how to read it.</p>
-  <div class="tw"><table><tr><th>Sentence type</th><th>What it does</th><th>Ends with</th><th>Example</th></tr><tr><td>Statement</td><td>Tells something</td><td>full stop .</td><td>I like mangoes.</td></tr><tr><td>Question</td><td>Asks something</td><td>question mark ?</td><td>Where do you live?</td></tr><tr><td>Exclamation</td><td>Shows strong feeling</td><td>exclamation mark !</td><td>What a beautiful rainbow!</td></tr><tr><td>Command</td><td>Tells someone to do something</td><td>full stop .</td><td>Please shut the door.</td></tr></table></div>
-  <h4>Capital letters</h4><p>Use a capital letter to start every sentence, for the word <b>I</b>, and for proper nouns: names, places, days, months and festivals.</p>
-  <h4>Apostrophes</h4><ul><li><b>Belonging:</b> add <b>’s</b>: Riya’s bag, the dog’s bone.</li><li><b>Short forms:</b> the apostrophe shows the missing letters: do not → don’t, I am → I’m, it is → it’s.</li></ul>
-  ${eg('Example 1','"can you swim" → "<b>C</b>an you swim<b>?</b>"')}${eg('Example 2','"kabir lives in pune." → "<b>K</b>abir lives in <b>P</b>une."')}${eg('Example 3','"I can not come." → "I <b>can’t</b> come."')}
-  <h4>Watch out</h4><p>Questions often start with who, what, where, when, why, how, can, do, is, are. Check before you put a full stop.</p>`,
-  sets:[SET('Level 1: which end mark?',()=>{const k=rnd(0,2),s=one([ST,QS,EXS][k]);return gQ(`${s}___`,'Which mark ends this sentence?',['.','?','!'][k],['.','?','!'].filter((x,i)=>i!==k),['It tells something: full stop.','It asks something: question mark.','It shows strong feeling: exclamation mark.'][k])}),
-   SET('Level 2: what kind of sentence?',()=>{const k=rnd(0,3),s=one([ST,QS,EXS,CMD][k])+['.','?','!','.'][k],names=['Statement','Question','Exclamation','Command'];return gQ(s,'What kind of sentence is this?',names[k],names.filter((x,i)=>i!==k),['It tells something.','It asks something.','It shows strong feeling.','It tells someone to do something.'][k])}),
-   SET('Level 3: capital letters',()=>{const[w,c]=one(CAP),alt=c.replace(/^(\w)/,m=>m.toLowerCase());const mid=c.split(' ').map((x,i)=>i===0?x:x.toLowerCase()).join(' ');return gQ('','Which sentence is written correctly?',c,[w,alt,mid],'Capitals for the first word, I, and names of people, places, days and months.')}),
-   SET('Apostrophes',()=>{if(Math.random()<.5){const[l,s,ws]=one(CON2);return gQ('',`What is the short form of "${l}"?`,s,ws,`The apostrophe takes the place of the missing letter: ${l} → ${s}.`)}const[o,t]=one(POSS),O=o[0].toUpperCase()+o.slice(1);return gQ('',`How do we write "the ${t} that belongs to ${o}"?`,`${O}’s ${t}`,[`${O}s ${t}`,`${O} ${t}’s`,`${O}s’ ${t}`],`For belonging, add ’s: ${O}’s ${t}.`)}),
-   SET('Challenge: mixed',()=>{const k=rnd(0,3),s=one([ST,QS,EXS,CMD][k]);return gQ(`${lc(s)}___`.replace(/^./,c=>c),`Which is the correct way to write it?`,s+['.','?','!','.'][k],[lc(s)+['.','?','!','.'][k],s+['?','.','.','?'][k]],'Capital letter at the start, and the right mark at the end.')})]},
- {n:9,title:'Joining words (conjunctions)',level:'Grade 3 and up',
-  learn:`<h4>The idea</h4><p>A <b>conjunction</b> joins words or sentences. Each one has its own job.</p>
-  <div class="tw"><table><tr><th>Word</th><th>Job</th><th>Example</th></tr><tr><td>and</td><td>adds</td><td>Riya <b>and</b> Meera are sisters.</td></tr><tr><td>but</td><td>shows a contrast (something unexpected)</td><td>She is small, <b>but</b> she is strong.</td></tr><tr><td>or</td><td>gives a choice</td><td>Tea <b>or</b> milk?</td></tr><tr><td>because</td><td>gives the reason</td><td>I stayed home <b>because</b> I was sick.</td></tr><tr><td>so</td><td>gives the result</td><td>I was hungry, <b>so</b> I ate a banana.</td></tr></table></div>
-  ${eg('Example 1: because or so?','Reason first, result second: "It rained, <b>so</b> we stayed in." Result first, reason second: "We stayed in <b>because</b> it rained."')}${eg('Example 2: joining two sentences','"I was tired. I finished my homework." → "I was tired, <b>but</b> I finished my homework."')}
-  <h4>Watch out</h4><p>Ask: am I adding, showing a contrast, giving a choice, a reason or a result? That tells you the word.</p>`,
-  sets:[SET('Level 1: and, but, or',()=>{const t=one(CJ.filter(x=>['and','but','or'].includes(x[1])));return gQ(t[0],'Which word fits?',t[1],['and','but','or'].filter(x=>x!==t[1]),{and:'It adds: and.',but:'It shows a contrast: but.',or:'It gives a choice: or.'}[t[1]])}),
-   SET('Level 2: because or so',()=>{const t=one(CJ.filter(x=>['because','so'].includes(x[1])));return gQ(t[0],'Which word fits?',t[1],['because','so','and'].filter(x=>x!==t[1]),t[1]==='so'?'The second part is the result: so.':'The second part is the reason: because.')}),
-   SET('Level 3: all five',()=>{const t=one(CJ);return gQ(t[0],'Which word fits?',t[1],sample(['and','but','or','because','so'].filter(x=>x!==t[1]),3),`The answer is "${t[1]}".`)}),
-   SET('Join two sentences',()=>{const t=one(CJJ);return gQ(`${t[0]} ${t[1]}`,'Which word joins these two sentences best?',t[2],['so','but','because'].filter(x=>x!==t[2]),`"${t[0].slice(0,-1)}${t[2]==='because'?'':','} ${t[2]} ${lc(t[1])}"`)}),
-   SET('Challenge: mixed',()=>Math.random()<.5?(t=>gQ(t[0],'Which word fits?',t[1],sample(['and','but','or','because','so'].filter(x=>x!==t[1]),3),`The answer is "${t[1]}".`))(one(CJ)):(t=>gQ(`${t[0]} ${t[1]}`,'Which word joins these best?',t[2],['so','but','because'].filter(x=>x!==t[2]),`The answer is "${t[2]}".`))(one(CJJ)))]}
-];
-const GGUIDE=[
-['How to use the grammar chapters',`<p>For Grade 3 and up. Each chapter has a concept page, a rules table, worked examples and 50 practice questions in 5 sets. Teach the rule with the child's own sentences first, then use the practice sets for homework.</p><h4>Rules</h4><ul><li>Say the sentence aloud: most grammar mistakes sound wrong when spoken.</li><li>Look for clue words (yesterday, every day, more than one).</li><li>Wrong answers go into the child's mistake bank and come back before tests.</li></ul><h4>Order</h4><p>Nouns, pronouns, verbs and tenses, adjectives and adverbs, articles, prepositions, agreement, punctuation, conjunctions. Grade 3 children can stop at Level 2 in each chapter.</p>`],
-['Nouns',`<p>Start with a "noun hunt" around the room: person, place, animal, thing. Then sort into common and proper with name cards.</p><p><b>Plurals:</b> teach the -s, -es, -ies, -ves rules one at a time; keep a "special plurals" list on the wall (children, men, teeth, mice, sheep).</p><p><b>Watch for:</b> "childrens", "sheeps", "babys".</p>`],
-['Pronouns',`<p>Rewrite a short paragraph where a name repeats in every sentence; the child replaces names with pronouns.</p><p><b>Watch for:</b> "Me and Riya went" (should be "Riya and I"), "him is", and its/it's.</p>`],
-['Verbs and tenses',`<p>Teach the four tenses with a timeline on the board: yesterday | now | every day | tomorrow. Clue words decide the tense.</p><p><b>Irregular past:</b> 5 a week (went, ate, wrote, bought, caught...). Use them in spoken sentences before writing.</p><p><b>Watch for:</b> "goed", "eated", "will goes", missing -s with he/she.</p>`],
-['Adjectives and adverbs',`<p>Use real objects to compare: two pencils (longer), three (longest).</p><p><b>Watch for:</b> "more taller", "gooder", and "He runs quick" (should be quickly).</p>`],
-['Articles',`<p>Teach a/an by sound, not spelling: say the word and listen. Practise the tricky ones (hour, honest, uniform, university).</p><p><b>The:</b> already mentioned, the only one, rivers and mountain ranges, and with -est words.</p>`],
-['Prepositions',`<p>Act them out with a box and a ball: in, on, under, behind, between. For time, use a calendar: at for times, on for days and dates, in for months and seasons.</p><p><b>Watch for:</b> in/into, and "on night" (should be at night).</p>`],
-['Subject and verb agreement',`<p>Underline the subject, decide one or more than one, then choose the verb. Practise with "and" subjects and tricky ones like "everyone", "the box of pencils".</p>`],
-['Punctuation and sentence types',`<p>Sort sentence strips into four piles: statement, question, exclamation, command. For capitals, give a paragraph with no capitals and let the child correct it.</p><p><b>Apostrophes:</b> belonging ('s) versus short forms (don't). Watch for its/it's.</p>`],
-['Conjunctions',`<p>Give two sentence cards and five conjunction cards; the child joins them and reads aloud. Because versus so is the key contrast: reason or result.</p>`]];
-MODS.grammar={name:'English grammar',title:'English grammar: Grade 3 and up',key:'gr',ch:GR,guide:GGUIDE,gnote:'A quick reference for teaching each grammar chapter: how to introduce it, activities, and the mistakes to watch for. The Kids’ self study chapters follow the same order, each with a concept page and 50 practice questions.'};
+MODS.grammar={name:'English grammar',title:'English grammar: Grade 3 and up',key:'gr',ch:null,guide:null,src:'mod-grammar.js',n:9,gnote:'A quick reference for teaching each grammar chapter: how to introduce it, activities, and the mistakes to watch for. The Kids’ self study chapters follow the same order, each with a concept page and 50 practice questions.'};
+MODS.mgram={name:'Marathi grammar',title:'Marathi grammar (मराठी व्याकरण)',key:'mg',ch:null,guide:null,src:'mod-mgram.js',n:6,gnote:'Teaching notes for each Marathi grammar chapter. Every chapter has a concept page and 50 practice questions. All word lists are at the top of mod-mgram.js, so they are easy to correct or extend.'};
+MODS.hgram={name:'Hindi grammar',title:'Hindi grammar (हिंदी व्याकरण)',key:'hg',ch:null,guide:null,src:'mod-hgram.js',n:6,gnote:'Teaching notes for each Hindi grammar chapter. Every chapter has a concept page and 50 practice questions. All word lists are at the top of mod-hgram.js, so they are easy to correct or extend.'};
 
 /* ====== Kids' World: 3D island map ====== */
 const THREE_URL='three.min.js';
@@ -1222,6 +850,7 @@ function world(){
   <div class="kw-avs" role="group" aria-label="Choose your character">${AVS.map(a=>`<button class="kw-avb" data-act="kwav" data-a="${a}" aria-pressed="${a===av}" aria-label="Character ${a}">${a}</button>`).join('')}</div></div>
   <div class="kw-stage" id="kwstage"><canvas id="kwc" role="img" aria-label="Island map. Tap an island to play."></canvas><div id="kwlabels"></div>
   <p class="kw-tip">Drag to spin the map · Tap an island to play</p><p class="kw-flat">The 3D map could not load on this device. Pick an island below.</p></div>
+  ${questCard()}
   <h2>Islands</h2><div class="kw-list">${ISL.map(i=>{const[d,t]=islProg(i);return `<a class="kw-card" href="${i.href}" data-act="kwgo" data-k="${i.k}" style="--c:${hex(i.col)}"><b>${i.name}</b><span>${i.sub}</span><span class="kw-bar"><i style="width:${t?d/t*100:0}%"></i></span><span class="kw-prog">${i.k==='kids'?d+' of '+t+' mastered':i.k==='pune'?d+' of '+t+' stamps':d+' of '+t+' badges'}</span></a>`}).join('')}</div></section>`}
 let W3=null;
 function unmountWorld(){if(W3){cancelAnimationFrame(W3.raf);try{W3.ro.disconnect()}catch(e){}try{W3.r.dispose()}catch(e){}W3=null}}
@@ -1297,14 +926,14 @@ function ckStart(band,bh,name){const sk=CKB[band].skills.concat(bh?CK_BH:[]);con
   sk.forEach((x,i)=>ckQs(x[0],x[1],x[2]).forEach(a=>q.push(Object.assign({},a,{sk:i}))));
   ck={band,bh,name,sk,q,i:0,res:sk.map(()=>0),input:'',built:[],phase:'ask'}}
 function check(){
-  if(!ck){const last=ls.get('ct_check');return `<section class="card stack ckhero"><h1>Free starting check</h1>
-  <p>About 10 minutes. Your child answers short questions on their own, and you get a clear picture straight away: what they are strong in, and what to work on next.</p>
-  <ul class="ckpts"><li>No sign-up, nothing to pay</li><li>Results stay on this device</li><li>Send the results to Chetana in one tap if you want her advice</li></ul></section>
-  <section class="card stack"><label class="fld"><span>Child’s first name (optional)</span><input id="ckname" maxlength="30" autocomplete="off" value="${kid?esc(kid.name):''}"></label>
-  <fieldset class="fld"><legend>Which class is your child in?</legend><div class="row">${Object.keys(CKB).map((k,i)=>`<label class="ckband"><input type="radio" name="ckb" value="${k}"${i===0?' checked':''}> ${CKB[k].name}</label>`).join('')}</div></fieldset>
-  <label class="ckband"><input type="checkbox" id="ckbh"> Also check Marathi/Hindi reading</label>
-  <p class="small muted">Tip: sit with your child, read questions aloud if needed, but let them choose the answer. “I don’t know yet” is a fine answer.</p>
-  <button class="btn go big" data-act="ckgo">Start the check</button>
+  if(!ck){const last=ls.get('ct_check');return `<section class="card stack ckhero">${TRL(20)}
+  ${TRL(21)}
+  <ul class="ckpts">${TRL(22)}</ul></section>
+  <section class="card stack"><label class="fld">${TRL(23)}<input id="ckname" maxlength="30" autocomplete="off" value="${kid?esc(kid.name):''}"></label>
+  <fieldset class="fld">${TRL(24)}<div class="row">${Object.keys(CKB).map((k,i)=>`<label class="ckband"><input type="radio" name="ckb" value="${k}"${i===0?' checked':''}> ${CKB[k].name}</label>`).join('')}</div></fieldset>
+  <label class="ckband"><input type="checkbox" id="ckbh"${TRL(25)}
+  <p class="small muted">${TRL(26)}</p>
+  <button class="btn go big" data-act="ckgo"${TRL(27)}
   ${last?`<p class="small"><a href="#check" data-act="cklast">See the last result (${esc(last.name||'child')}, ${esc(last.date)})</a></p>`:''}</section>`}
   if(ck.phase==='done')return ckReport(ck.result);
   const a=ck.q[ck.i];let body;
@@ -1330,15 +959,16 @@ function ckReport(r){const g=r.sk.filter(x=>x.s===2),d=r.sk.filter(x=>x.s===1),w
   const txt=`Hi Chetana, I did the free starting check for ${r.name||'my child'} (${CKB[r.band].name}) on ${r.date}. Score ${tot}/${max}.\nStrong: ${g.map(x=>x.t).join(', ')||'-'}\nGetting there: ${d.map(x=>x.t).join(', ')||'-'}\nNeeds work: ${w.map(x=>x.t).join(', ')||'-'}\nCould we talk about a plan and a free demo class?`;
   return `<section class="card stack center ckres"><p class="small muted">${esc(CKB[r.band].name)} · ${esc(r.date)}</p><h1>${head}</h1>
   <div class="ckring" style="--p:${tot/max*100}"><b>${tot}</b><span>of ${max}</span></div>
-  <p class="muted">This is a quick snapshot from ${max} questions, not an exam. It shows where to start.</p></section>
+  ${TRL(28)}</section>
   <div class="ckgrid">
-   <section class="card stack"><h2>🌟 Strong</h2><ul class="cklist">${li(g,'g')||'<li class="muted">Nothing yet, and that is fine.</li>'}</ul></section>
-   <section class="card stack"><h2>🌱 Getting there</h2><ul class="cklist">${li(d,'d')||'<li class="muted">None</li>'}</ul></section>
-   <section class="card stack"><h2>🎯 Start here</h2><ul class="cklist">${li(w,'w')||'<li class="muted">No weak spots in this check!</li>'}</ul></section></div>
-  <section class="card stack ckcta"><h2>Want a plan from Chetana?</h2><p>Send these results on WhatsApp. She will suggest where to begin and fix a free demo class.</p>
-  <div class="row"><a class="btn go big" href="https://wa.me/919730195429?text=${encodeURIComponent(txt)}" target="_blank" rel="noopener" data-lead="check">Send results on WhatsApp</a><a class="btn" href="#world">Practise in Kids’ World</a><button class="btn ghost" data-act="ckagain">Check again</button></div></section>`}
+   <section class="card stack">${TRL(29)}<ul class="cklist">${li(g,'g')||'<li class="muted">Nothing yet, and that is fine.</li>'}</ul></section>
+   <section class="card stack">${TRL(30)}<ul class="cklist">${li(d,'d')||'<li class="muted">None</li>'}</ul></section>
+   <section class="card stack">${TRL(31)}<ul class="cklist">${li(w,'w')||'<li class="muted">No weak spots in this check!</li>'}</ul></section></div>
+  <section class="card stack ckcta">${TRL(32)}
+  <div class="row"><a class="btn go big" href="https://wa.me/919730195429?text=${encodeURIComponent(txt)}" target="_blank" rel="noopener" ${TRL(33)}<a class="btn" href="#world">Practise in Kids’ World</a><button class="btn ghost" data-act="ckagain">Check again</button></div></section>`}
 Object.assign(acts,{
- ckgo(){const b=(document.querySelector('input[name=ckb]:checked')||{}).value||'g12';ckStart(b,document.getElementById('ckbh').checked,(document.getElementById('ckname').value||'').trim().slice(0,30));render();window.scrollTo(0,0)},
+ ckgo(){const b=(document.querySelector('input[name=ckb]:checked')||{}).value||'g12',bh=document.getElementById('ckbh').checked,nm=(document.getElementById('ckname').value||'').trim().slice(0,30);
+ loadAllMods().then(()=>{ckStart(b,bh,nm);render();window.scrollTo(0,0)}).catch(()=>toast('Could not load the questions. Check the internet.',true))},
  cklast(){ck={phase:'done',result:ls.get('ct_check')};render()},
  ckagain(){ck=null;render();window.scrollTo(0,0)},
  ckans(d){ckMark(d.v===ck.q[ck.i].a)},
@@ -1389,7 +1019,7 @@ const PGAMES={
 let pz=null;
 const pzProg=()=>ls.get('ct_pune')||{done:[],at:0};
 function puneMap(pr){const pts=PSTOPS.map(s=>s.x+','+s.y).join(' ');const cur=PSTOPS[Math.min(pr.at,PSTOPS.length-1)];
- return `<div class="pz-map"><svg viewBox="0 0 360 480" role="img" aria-label="Map of Pune with ${PSTOPS.length} stops">
+ return `<div class="pz-map"><svg viewBox="0 0 360 480" role="group" aria-label="Map of Pune with ${PSTOPS.length} stops">
  <rect width="360" height="480" fill="#EFE6CF"/>
  <path d="M10 470 C40 400 30 380 70 340 S120 300 150 260 S170 200 180 190" fill="none" stroke="#7FB8D8" stroke-width="9" stroke-linecap="round"/>
  <path d="M0 150 C60 160 100 140 140 160 S170 190 180 190 S240 170 300 150 S340 140 360 135" fill="none" stroke="#7FB8D8" stroke-width="9" stroke-linecap="round"/>
@@ -1436,7 +1066,7 @@ Object.assign(acts,{
  pzcar(d){const j=pz.q,k=+d.k,left=j.cars.map((c,i)=>i).filter(i=>j.gone.indexOf(i)<0),min=Math.min(...left.map(i=>j.cars[i].v));
   if(j.cars[k].v===min){j.gone.push(k);if(j.gone.length===j.cars.length)pzAnswer(true,'Road cleared!');else render()}
   else pzAnswer(false,`Car ${min} had to go first. Look for the smallest number each time.`)},
- pznext(){pz.n++;pz.fb=null;if(pz.n>=5){pz.phase='done';if(pz.right>=4){const pr=pzProg(),s=PSTOPS[pz.i];if(pr.done.indexOf(s.id)<0)pr.done.push(s.id);pr.at=Math.max(pr.at,Math.min(pz.i+1,PSTOPS.length-1));ls.set('ct_pune',pr);if(kid){kid.stars=(kid.stars||0)+pz.right;saveKid()}}}else pzNewQ();render()},
+ pznext(){pz.n++;pz.fb=null;if(pz.n>=5){pz.phase='done';if(pz.right>=4){const pr=pzProg(),s=PSTOPS[pz.i];if(pr.done.indexOf(s.id)<0){pr.done.push(s.id);qev('pune')}pr.at=Math.max(pr.at,Math.min(pz.i+1,PSTOPS.length-1));ls.set('ct_pune',pr);if(kid){kid.stars=(kid.stars||0)+pz.right;saveKid()}}}else pzNewQ();render()},
  pzreset(){ls.set('ct_pune',{done:[],at:0});render()}});
 
 /* ====== Teacher console v2: Today, Students, Batches, Fees, Leads ====== */
@@ -1461,11 +1091,13 @@ function tPutK(kind,o){return S.tPut(tpin,kind,o).then(r=>{tdata[kind]=tdata[kin
 function tDelK(kind,id){return S.tDel(tpin,kind,id).then(()=>{tdata[kind]=T(kind).filter(x=>x.id!==id);armed=null;msg='';render()}).catch(tfail)}
 
 function teacher(){
+  if(!tdata&&SYNC_URL&&CFG.GOOGLE_CLIENT_ID&&!gTok)return googleGate();
   if(!tdata){const first=!SYNC_URL&&!db().tpin;return pad(first?'Choose a teacher PIN':'Teacher PIN',first?'6 digits or more. Remember it: it protects this page.':'',true)}
-  const tabs=[['today','Today'],['students','Students'],['batches','Batches'],['fees','Fees'],['enquiries','Leads'],['help','Setup']];
-  const body=tview==='today'?todayView():tview==='students'?(tsel?studentDetail():studentList()):tview==='batches'?batchesView():tview==='fees'?feesView():tview==='enquiries'?enquiries():help();
-  return `<section class="stack"><div class="row"><h1 style="margin-right:auto">Teacher console</h1><button class="btn ghost" data-act="tlock">Lock</button></div>
-  <div class="tabs tc-tabs">${tabs.map(([k,l])=>`<button class="btn" data-act="ttab" data-t="${k}" aria-pressed="${tview===k}">${l}</button>`).join('')}</div>
+  const own=isOwner(),tabs=own?[['today','Today'],['students','Students'],['batches','Batches'],['fees','Fees'],['enquiries','Leads'],['help','Setup']]:[['today','Today'],['students','Students'],['help','Help']];
+  if(!own&&['batches','fees','enquiries','reports'].indexOf(tview)>=0)tview='today';
+  const body=tview==='reports'?reportsView():tview==='fees'&&treceipt?receiptView():tview==='today'?todayView():tview==='students'?(tsel?(own?studentDetail():teacherStudentDetail()):studentList()):tview==='batches'?batchesView():tview==='fees'?feesView():tview==='enquiries'?enquiries():help();
+  return `<section class="stack"><div class="row"><h1 style="margin-right:auto">${own?'Teacher console':'Hello, '+esc(tdata.me.name)}</h1><button class="btn ghost" data-act="tlock">Lock</button></div>
+  <div class="tabs tc-tabs">${tabs.map(([k,l])=>`<button class="btn" data-act="ttab" data-t="${k}" aria-pressed="${tview===k||(tview==='reports'&&k==='students')}">${l}</button>`).join('')}</div>
   ${msg?`<p class="pill bad" role="alert">${esc(msg)}</p>`:''}</section>${body}`}
 
 /* ---------- Today ---------- */
@@ -1480,9 +1112,9 @@ function todayView(){if(tcls)return classLog();
      ${b.mode==='online'&&b.link?`<a class="btn" href="${esc(b.link)}" target="_blank" rel="noopener">Open Meet</a>`:''}<button class="btn ${c?'':'go'}" data-act="topencls" data-b="${b.id}">${c?'Edit log':'Take attendance'}</button></div>`}).join('')
    :`<p class="muted">${T('batches').length?'No regular classes on this day.':'Add your batches in the <b>Batches</b> tab, and they will show here on their days.'}</p>`}
   ${other.length?`<div class="row"><label class="grow">Extra or make-up class<select id="tc-extra">${other.map(b=>`<option value="${b.id}">${esc(b.name)}</option>`).join('')}</select></label><button class="btn" data-act="textra">Log it</button></div>`:''}</section>
-  <section class="tc-stats"><button class="card center tc-stat" data-act="ttab" data-t="fees"><div class="stat">${feeDue.length}</div><div class="muted small">fees pending for ${monthName(m).split(' ')[0]}</div></button>
+  ${isOwner()?`<section class="tc-stats"><button class="card center tc-stat" data-act="ttab" data-t="fees"><div class="stat">${feeDue.length}</div><div class="muted small">fees pending for ${monthName(m).split(' ')[0]}</div></button>
    <button class="card center tc-stat" data-act="ttab" data-t="enquiries"><div class="stat">${newL.length}</div><div class="muted small">leads to follow up</div></button>
-   <button class="card center tc-stat" data-act="ttab" data-t="students"><div class="stat">${active().length}</div><div class="muted small">active students</div></button></section>
+   <button class="card center tc-stat" data-act="ttab" data-t="students"><div class="stat">${active().length}</div><div class="muted small">active students</div></button></section>`:''}
   ${newL.slice(0,3).length?`<section class="card stack"><h3>Follow up today</h3>${newL.slice(0,3).map(e=>{const l=waLink(e.phone,`Hello ${e.parent}, this is Chetana from Chetana’s Tutoring. Following up about classes for your child. When would suit you for a free demo?`);return `<div class="item"><div class="grow"><b>${esc(e.parent)}</b> <span class="small muted">${esc(e.status)} · ${esc(e.date)}</span>${e.note?`<div class="small">${esc(e.note)}</div>`:''}</div>${l?`<a class="btn" href="${l}" target="_blank" rel="noopener">WhatsApp</a>`:''}</div>`}).join('')}</section>`:''}`}
 
 function classLog(){const b=T('batches').find(x=>x.id===tcls);if(!b){tcls=null;return todayView()}
@@ -1517,14 +1149,15 @@ function feesView(){const m=tmonth,ss=active().filter(s=>+s.fee>0).sort((a,b)=>a
   ${due.map(s=>{const l=waLink(s.phone,`Hello${s.parent?' '+s.parent:''}, a gentle reminder that ${s.name}’s tuition fee of ${rupee(s.fee)} for ${monthName(m)} is due. UPI or cash both work. Thank you! – Chetana`);
     return `<div class="item"><div class="grow"><b>${esc(s.name)}</b> <span class="pill bad">Due</span><div class="small muted">${rupee(s.fee)}${batchOf(s)?' · '+esc(batchOf(s).name):''}</div></div>
     ${l?`<a class="btn" href="${l}" target="_blank" rel="noopener">Remind</a>`:''}<button class="btn go" data-act="tpaid" data-id="${s.id}" data-m="UPI">Paid UPI</button><button class="btn" data-act="tpaid" data-id="${s.id}" data-m="Cash">Cash</button></div>`}).join('')}
-  ${got.map(s=>{const f=feeRec(s,m);return `<div class="item"><div class="grow"><b>${esc(s.name)}</b> <span class="pill ok">Paid</span><div class="small muted">${rupee(f.amount)} · ${esc(f.mode)} · ${esc(f.date)}</div></div><button class="btn ghost" data-act="tunpaid" data-id="${s.id}">${armed==='f'+s.id?'Tap again to undo':'Undo'}</button></div>`}).join('')}</section>`}
+  ${got.map(s=>{const f=feeRec(s,m);return `<div class="item"><div class="grow"><b>${esc(s.name)}</b> <span class="pill ok">Paid</span><div class="small muted">${rupee(f.amount)} · ${esc(f.mode)} · ${esc(f.date)}</div></div><button class="btn" data-act="treceipt" data-id="${f.id}">Receipt</button><button class="btn ghost" data-act="tunpaid" data-id="${s.id}">${armed==='f'+s.id?'Tap again to undo':'Undo'}</button></div>`}).join('')}</section>`}
 
 /* ---------- Students ---------- */
 function studentList(){const all=T('students').slice().sort((a,b)=>a.name.localeCompare(b.name)),ss=all.filter(s=>s.status!=='left'),left=all.filter(s=>s.status==='left'),m=today().slice(0,7);
   const row=s=>{const tr=tricky(s),b=batchOf(s),f=+s.fee>0?(feeRec(s,m)||{}).paid:null,a=attend(s,m);return `<div class="item"><div class="grow"><b>${esc(s.name)}</b> <span class="muted small">Grade ${esc(s.grade||'?')}${s.board?' · '+esc(s.board):''}</span>
    <div class="small muted">${b?esc(b.name):'No batch'} · attended ${a.p}/${a.t} this month · ★ ${s.stars||0}</div></div>
    ${f===false?'<span class="pill bad">Fee due</span>':''}${tr.length?`<span class="pill">${tr.length} tricky</span>`:''}<button class="btn" data-act="tsel" data-id="${esc(s.id)}">Open</button></div>`};
-  return `<section class="card">${ss.length?ss.map(row).join(''):`<p class="muted">No students yet. Add the first one below.</p>`}</section>
+  if(!isOwner())return `<section class="card">${ss.map(row).join('')||'<p class="muted">No students in your batches yet.</p>'}</section>`;
+  return `${ss.length?`<div class="row"><button class="btn go" data-act="treports">Send monthly reports</button></div>`:''}<section class="card">${ss.length?ss.map(row).join(''):`<p class="muted">No students yet. Add the first one below.</p>`}</section>
   ${left.length?`<details class="card"><summary>Past students (${left.length})</summary>${left.map(row).join('')}</details>`:''}
   <form class="card stack" data-form="addstudent"><h3>Add a student</h3>
   <div class="row"><label>First name<input id="as-name" required maxlength="20"></label><label>Grade<input id="as-grade" inputmode="numeric" maxlength="2"></label><label>4-digit PIN<input id="as-pin" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" required></label></div>
@@ -1587,9 +1220,11 @@ function enquiries(){const es=T('enquiries').slice().sort((a,b)=>(b.date||'').lo
   <label>Note<input id="ae-note" maxlength="160" placeholder="e.g. starting check 12/26, weak in fractions; demo Saturday"></label><div class="row"><button class="btn navy">Add lead</button></div></form>`}
 
 /* ---------- Setup ---------- */
-function help(){return `<section class="card stack"><h3>Where the data lives</h3>
+function help(){if(!isOwner())return `<section class="card stack"><h3>How to use this</h3><p>After each class, open <b>Today</b>, tap your batch, untick absent children, and note what you taught and the homework. Open a student to update their reading level, note or mistake bank.</p><p>Lock this page when you hand the phone to a child.</p></section>`;
+  return `<section class="card stack">${teachersSection()}</section><section class="card stack"><h3>Where the data lives</h3>
   <p>${SYNC_URL?'<span class="pill ok">Synced</span> Saved in your private Google Sheet. Every device sees the same data.':'<span class="pill bad">This device only</span> Saved in this browser only. Clearing the browser deletes it, so download a backup regularly. The README explains the free Google Sheet setup.'}</p>
   <div class="row"><button class="btn" data-act="tbackup">Download a backup</button></div>
+  <h3>Put it on your phone like an app</h3><p>Open the website in Chrome on your phone, tap the ⋮ menu, then <b>Add to Home screen</b> (on iPhone: Safari, Share, <b>Add to Home Screen</b>). It opens full-screen, and the Today screen still opens on weak internet.</p>
   <h3>Daily routine (2 minutes)</h3>
   <p>1. After each class, open <b>Today</b>, tap the batch, untick absent children, type what you taught and the homework.<br>2. When a parent pays, tap <b>Paid UPI</b> or <b>Cash</b> in <b>Fees</b>. Use <b>Remind</b> for anyone pending after the 10th.<br>3. Every new parent enquiry goes in <b>Leads</b>. Starting-check messages on WhatsApp go there too.<br>4. Once a month, open each student and tap <b>Send on WhatsApp</b> for the parent report.</p>
   <h3>Privacy</h3><p>Children: first names only. Parent numbers and fees are visible only after the teacher PIN. Lock this page when you hand the phone to a child. If a parent asks, delete their child’s record.</p></section>`}
@@ -1606,7 +1241,6 @@ Object.assign(acts,{
   tdelcls(){if(armed!=='c'){armed='c';render();return}const id=clsId(tcls,tdate);tcls=null;tDelK('classes',id)},
   tbedit(d){tedit=d.id;armed=null;render()},tbcancel(){tedit=null;armed=null;render()},
   tdelbatch(){if(armed!=='b'){armed='b';render();return}const id=tedit;tedit=null;tDelK('batches',id)},
-  tpaid(d){const s=T('students').find(x=>x.id===d.id);tPutK('fees',{id:'f_'+s.id+'_'+tmonth,sid:s.id,month:tmonth,amount:+s.fee,paid:true,mode:d.m,date:today()})},
   tunpaid(d){if(armed!=='f'+d.id){armed='f'+d.id;render();return}tDelK('fees','f_'+d.id+'_'+tmonth)},
   econvert(d){if(!confirm('Has the parent agreed to us keeping their child’s details? (See the Privacy page.)'))return;const e=T('enquiries').find(x=>x.id===d.id);const s={id:newId('s'),name:e.child||e.parent.split(' ')[0],grade:e.grade,parent:e.parent,phone:e.phone,pin:String(rnd(1000,9999)),level:0,note:'',mistakes:[],status:'active',start:today(),consent:today()};
     e.status='Joined';S.tPut(tpin,'enquiries',e).then(()=>putStudent(s)).then(()=>{tview='students';tsel=s.id;msg='Student added with PIN '+s.pin+'. Tell the child, then fill in the rest.';render()}).catch(tfail)},
@@ -1634,13 +1268,13 @@ Object.assign(forms,{
 document.addEventListener('change',e=>{const t=e.target;if(t.dataset.change==='tdate'&&t.value){tdate=t.value;tcls=null;render()}if(t.dataset.change==='tmonth'&&t.value){tmonth=t.value;armed=null;render()}});
 
 /* ====== Privacy page ====== */
-function privacy(){return `<section class="stack"><h1>Privacy</h1><p class="lead">Short and plain: what we keep, why, and how to get it removed.</p></section>
+function privacy(){if(LANG!=='en')return PRIV_L[LANG]+`<div class="row"><a class="btn go" href="${WA}" target="_blank" rel="noopener">${LANG==='mr'?'चेतना यांना संदेश पाठवा':'चेतना को संदेश भेजें'}</a></div></section>`;return `<section class="stack"><h1>Privacy</h1><p class="lead">Short and plain: what we keep, why, and how to get it removed.</p></section>
 <section class="card stack prose">
 <h2>What we keep about your child</h2>
 <p>Only what we need to teach well: <b>first name</b>, grade, board and school, batch, attendance, class notes, practice scores on this website, and fee payments. For parents: your name and WhatsApp number, so we can send reports and reminders.</p>
 <p>We do <b>not</b> keep surnames of children, photos or videos of children, home addresses, Aadhaar or any ID numbers, or bank or card details.</p>
 <h2>Why</h2><p>To plan your child’s lessons, track progress, send you monthly reports, and manage fees. Nothing else. We never sell, share or advertise with your data, and we do not use advertising or tracking cookies.</p>
-<h2>Who can see it</h2><p>Only Chetana. The records are kept in a private Google Sheet in her account, protected by 2-step verification. The teacher area of this website opens only with her PIN. A child’s own login (first name and a 4-digit PIN) shows only that child’s practice stars and missions.</p>
+<h2>Who can see it</h2><p>Only Chetana, and any teacher she adds, who sees only their own batches’ attendance, class notes and practice (never parents’ numbers or fees). The records are kept in a private Google Sheet in her account, protected by 2-step verification. The teacher area of this website opens only with her PIN. A child’s own login (first name and a 4-digit PIN) shows only that child’s practice stars and missions.</p>
 <h2>Practice without signing in</h2><p>Children can use the learning library, Kids’ World, Pune Ride and the starting check without any login. Those results stay on your own device only. If you choose to send starting-check results to Chetana, or book a demo, those details also go into her private enquiry list so she can follow up.</p>
 <h2>Your consent</h2><p>We add a child only after a parent or guardian agrees. You can withdraw consent at any time.</p>
 <h2>See, correct or delete</h2><p>Message Chetana on WhatsApp to see what we hold, correct it, or delete it. We delete a child’s record within 7 days of a request, and we automatically delete records of children who left more than 12 months ago (fee entries are kept for accounts), and enquiries that did not lead to classes after 12 months.</p>
@@ -1648,11 +1282,276 @@ function privacy(){return `<section class="stack"><h1>Privacy</h1><p class="lead
 <p class="small muted">Last updated: November 2026.</p>
 <div class="row"><a class="btn go" href="${WA}" target="_blank" rel="noopener">Message Chetana</a></div></section>`}
 
+/* ====== Monthly reports, fee receipts, UPI ====== */
+const CFG=window.CT_CONFIG||{};
+let treceipt=null,trepm=today().slice(0,7);
+function inWords(n){n=Math.round(+n||0);if(!n)return 'Zero';const a=['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'],
+  b=['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'],two=x=>x<20?a[x]:b[Math.floor(x/10)]+(x%10?' '+a[x%10]:''),
+  three=x=>(x>=100?a[Math.floor(x/100)]+' Hundred'+(x%100?' ':''):'')+(x%100?two(x%100):'');
+  const parts=[];const cr=Math.floor(n/1e7),lk=Math.floor(n/1e5)%100,th=Math.floor(n/1e3)%100,rest=n%1000;
+  if(cr)parts.push(three(cr)+' Crore');if(lk)parts.push(two(lk)+' Lakh');if(th)parts.push(two(th)+' Thousand');if(rest)parts.push(three(rest));return parts.join(' ')}
+
+/* receipt numbers: R + YYMM + running number in that month */
+function nextReceipt(month){const used=T('fees').filter(f=>f.month===month&&f.rno).map(f=>+String(f.rno).split('-')[1]||0);return 'R'+month.slice(2,4)+month.slice(5,7)+'-'+String((used.length?Math.max(...used):0)+1).padStart(3,'0')}
+function receiptText(f,s){return `*Fee receipt ${f.rno}* – Chetana’s Tutoring\nReceived ${rupee(f.amount)} (Rupees ${inWords(f.amount)} only) for ${s.name}’s tuition, ${monthName(f.month)}.\nPaid by ${f.mode} on ${f.date}.\nThank you!`}
+function receiptView(){const f=T('fees').find(x=>x.id===treceipt),s=f&&T('students').find(x=>x.id===f.sid);if(!f||!s){treceipt=null;return feesView()}
+  const wl=waLink(s.phone,receiptText(f,s));
+  return `<div class="row noprint"><button class="btn" data-act="trclose">← Fees</button></div>
+  <section class="card receipt"><div class="rc-head"><img src="img/logo.jpg" alt="" width="56" height="56"><div><b>Chetana’s Tutoring</b><span>Sparklet, Megapolis, Hinjawadi, Pune</span></div><div class="rc-no">Receipt<br><b>${esc(f.rno||'–')}</b></div></div>
+  <table class="rc-t"><tr><th>Date</th><td>${esc(f.date)}</td></tr><tr><th>Received from</th><td>${esc(s.parent||'Parent of '+s.name)}</td></tr>
+  <tr><th>Student</th><td>${esc(s.name)}${s.grade?', Grade '+esc(s.grade):''}</td></tr><tr><th>For</th><td>Tuition fee, ${monthName(f.month)}</td></tr>
+  <tr><th>Paid by</th><td>${esc(f.mode)}</td></tr><tr class="rc-amt"><th>Amount</th><td>${rupee(f.amount)}<small>Rupees ${inWords(f.amount)} only</small></td></tr></table>
+  <p class="rc-sign">Received with thanks,<br><b>Chetana</b></p></section>
+  <div class="row noprint"><button class="btn go" data-act="tprint">Print or save as PDF</button>${wl?`<a class="btn" href="${wl}" target="_blank" rel="noopener">Send on WhatsApp</a>`:''}</div>`}
+
+/* monthly reports: one list, one tap each */
+function reportsView(){const m=trepm,sent=ls.get('ct_rep_'+m)||[],ss=active().sort((a,b)=>a.name.localeCompare(b.name));
+  return `<div class="row"><button class="btn" data-act="tback">← Students</button></div>
+  <section class="card stack"><div class="row"><h2 style="margin-right:auto">Monthly reports</h2><input type="month" value="${m}" data-change="trepm" aria-label="Report month" style="width:auto"></div>
+  <p class="muted">${sent.length} of ${ss.length} sent for ${monthName(m)}. Tap Send: WhatsApp opens with the report ready; press send there, then come back for the next one.</p>
+  ${ss.map(s=>{const t=report(s),l=waLink(s.phone,t),done=sent.indexOf(s.id)>=0;return `<details class="item rp${done?' sent':''}"><summary><b>${esc(s.name)}</b> ${done?'<span class="pill ok">Sent</span>':''}${l?'':'<span class="pill bad">No WhatsApp number</span>'}</summary><pre class="msg">${esc(t)}</pre></details>
+   ${l?`<a class="btn ${done?'':'go'}" href="${l}" target="_blank" rel="noopener" data-rsent="${s.id}">${done?'Send again':'Send'}</a>`:''}`}).join('')}</section>`}
+document.addEventListener('click',e=>{const a=e.target.closest('a[data-rsent]');if(!a)return;const k='ct_rep_'+trepm,l=ls.get(k)||[];if(l.indexOf(a.dataset.rsent)<0){l.push(a.dataset.rsent);ls.set(k,l)}setTimeout(render,300)});
+document.addEventListener('change',e=>{if(e.target.dataset.change==='trepm'&&e.target.value){trepm=e.target.value;render()}});
+Object.assign(acts,{
+  trclose(){treceipt=null;render()},tprint(){window.print()},
+  treceipt(d){treceipt=d.id;render();window.scrollTo(0,0)},
+  treports(){tview='reports';tsel=null;render();window.scrollTo(0,0)},
+  tpaid(d){const s=T('students').find(x=>x.id===d.id),id='f_'+s.id+'_'+tmonth;
+    tPutK('fees',{id,sid:s.id,month:tmonth,amount:+s.fee,paid:true,mode:d.m,date:today(),rno:nextReceipt(tmonth)}).then(()=>{treceipt=id;render()})}
+});
+
+/* ====== Roles (owner / added teacher) and optional Google sign-in ====== */
+let gTok=null,gReady=false,tTedit=null;
+const isOwner=()=>!tdata||!tdata.me||tdata.me.role==='owner';
+function loadGIS(){return window.google&&google.accounts?Promise.resolve():new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://accounts.google.com/gsi/client';s.async=true;s.onload=res;s.onerror=rej;document.head.appendChild(s)})}
+function googleGate(){
+  loadGIS().then(()=>{if(!gReady){google.accounts.id.initialize({client_id:CFG.GOOGLE_CLIENT_ID,callback:r=>{gTok=r.credential;msg='';render()},auto_select:false});gReady=true}
+    const el=document.getElementById('gbtn');if(el)google.accounts.id.renderButton(el,{theme:'filled_blue',size:'large',text:'signin_with',shape:'pill'})})
+   .catch(()=>{const el=document.getElementById('gbtn');if(el)el.textContent='Could not load Google sign-in. Check the internet.'});
+  return `<section class="card stack center"><h2>Teacher sign-in</h2><p class="muted">Step 1 of 2: sign in with your Google account. Then enter your PIN.</p>
+  ${msg?`<p class="pill bad" role="alert">${esc(msg)}</p>`:''}<div id="gbtn" class="gbtn"></div></section>`}
+function teacherStudentDetail(){const s=T('students').find(x=>x.id===tsel);if(!s){tsel=null;return studentList()}
+  const m=today().slice(0,7),a=attend(s,m),hist=T('classes').filter(c=>(c.present||[]).indexOf(s.id)>=0||(c.absent||[]).indexOf(s.id)>=0).sort((x,y)=>y.date.localeCompare(x.date)).slice(0,8);
+  return `<div class="row"><button class="btn" data-act="tback">← All students</button></div>
+  <form class="card stack" data-form="tsavenotes"><h2>${esc(s.name)}</h2><p class="muted">Grade ${esc(s.grade||'?')} · attended ${a.p} of ${a.t} in ${monthName(m)}</p>
+  <label>Reading level<select id="es-level">${LEVELS.map((l,i)=>`<option value="${i}" ${i==(s.level||0)?'selected':''}>${l}</option>`).join('')}</select></label>
+  <label>Note for the child and parents<textarea id="es-note" rows="2" maxlength="300">${esc(s.note||'')}</textarea></label><div class="row"><button class="btn navy">Save</button></div></form>
+  <section class="card stack"><h3>Classes</h3>${hist.map(c=>`<div class="small"><b>${esc(c.date)}</b> ${c.present.indexOf(s.id)>=0?'Present':'Absent'}${c.topic?' · '+esc(c.topic):''}${c.notes&&c.notes[s.id]?' · <i>'+esc(c.notes[s.id])+'</i>':''}</div>`).join('')||'<p class="muted small">No classes logged yet.</p>'}</section>
+  <section class="card stack"><h3>Mistake bank from class</h3>
+  ${(s.mistakes||[]).map(mm=>`<div class="item"><div class="grow ${mm.fixed?'muted':''}">${mm.fixed?'<s>'+esc(mm.text)+'</s>':esc(mm.text)}</div><button class="btn" data-act="mfix" data-id="${mm.id}">${mm.fixed?'Reopen':'Mark fixed'}</button></div>`).join('')}
+  <form class="row" data-form="addmistake"><label class="grow">New mistake<input id="am-text" required maxlength="80"></label><button class="btn navy">Add</button></form></section>`}
+function teachersSection(){if(!SYNC_URL)return `<h3>Other teachers</h3><p class="muted">Adding a second teacher needs the Google Sheet connection.</p>`;
+  const ts=T('teachers'),bs=T('batches'),e=tTedit&&tTedit!=='new'?ts.find(t=>t.id===tTedit):null;
+  if(tTedit){const t=e||{batches:[]};return `<form class="stack" data-form="saveteacher"><h3>${t.id?'Edit teacher':'Add a teacher'}</h3>
+   <div class="row"><label class="grow">Name<input id="tt-name" required maxlength="30" value="${esc(t.name||'')}"></label>${CFG.GOOGLE_CLIENT_ID?`<label class="grow">Their Google email<input id="tt-email" type="email" maxlength="80" value="${esc(t.email||'')}" required></label>`:''}</div>
+   <label>${t.id?'New PIN (leave empty to keep)':'PIN for this teacher (6 to 8 digits)'}<input id="tt-pin" inputmode="numeric" pattern="[0-9]{6,8}" maxlength="8" ${t.id?'':'required'}></label>
+   <fieldset class="fld"><legend>Batches they teach</legend><div class="row">${bs.map(b=>`<label class="ckband"><input type="checkbox" name="tt-b" value="${b.id}" ${(t.batches||[]).indexOf(b.id)>=0?'checked':''}> ${esc(b.name)}</label>`).join('')||'<span class="muted">Add batches first.</span>'}</div></fieldset>
+   ${t.id?`<label class="ckband"><input type="checkbox" id="tt-off" ${t.active===false?'checked':''}> Turn off this teacher’s access</label>`:''}
+   <div class="row"><button class="btn go">Save teacher</button><button type="button" class="btn" data-act="ttcancel">Cancel</button>${t.id?`<button type="button" class="btn bad" data-act="ttdel">${armed==='t'?'Tap again to delete':'Delete'}</button>`:''}</div>
+   <p class="small muted">They see only these batches: attendance, class logs, reading levels and notes. They never see fees, parents’ numbers or leads.</p></form>`}
+  return `<h3>Other teachers</h3>${ts.map(t=>`<div class="item"><div class="grow"><b>${esc(t.name)}</b> ${t.active===false?'<span class="pill bad">Off</span>':''}<div class="small muted">${(t.batches||[]).map(id=>{const b=bs.find(x=>x.id===id);return b?esc(b.name):''}).filter(Boolean).join(', ')||'No batches'}</div></div><button class="btn" data-act="ttedit" data-id="${t.id}">Edit</button></div>`).join('')||'<p class="muted small">Only you for now.</p>'}
+  <div class="row"><button class="btn" data-act="ttedit" data-id="new">Add a teacher</button></div>`}
+Object.assign(acts,{
+  ttedit(d){tTedit=d.id;armed=null;render()},ttcancel(){tTedit=null;armed=null;render()},
+  ttdel(){if(armed!=='t'){armed='t';render();return}const id=tTedit;call('tTeacherDel',{pin:tpin,id}).then(()=>{tdata.teachers=T('teachers').filter(t=>t.id!==id);tTedit=null;armed=null;render()}).catch(tfail)}
+});
+Object.assign(forms,{
+  saveteacher(){const pin=val('tt-pin'),o={id:tTedit!=='new'?tTedit:'t'+Date.now().toString(36),name:val('tt-name'),email:CFG.GOOGLE_CLIENT_ID?val('tt-email'):'',
+      batches:[...document.querySelectorAll('input[name=tt-b]:checked')].map(x=>x.value),active:!(document.getElementById('tt-off')||{}).checked};
+    if(pin){if(!/^\d{6,8}$/.test(pin)){toast('Teacher PINs need 6 to 8 digits.',true);return}o.pin=pin}
+    call('tTeacherPut',{pin:tpin,o}).then(t=>{tdata.teachers=T('teachers').filter(x=>x.id!==t.id).concat(t);tTedit=null;render();toast('Saved. Tell '+t.name+' their PIN in person.')}).catch(tfail)},
+  tsavenotes(){const s=T('students').find(x=>x.id===tsel);putStudent(Object.assign({},s,{level:+val('es-level'),note:val('es-note')}))}
+});
+
+/* ====== Practice: My mistakes, mixed tests, weekly quest, Tonight's 10 minutes ====== */
+const mxKey=()=>'ct_mx_'+(kid?kid.id:'guest');
+const mxList=()=>ls.get(mxKey())||[];
+function mxAdd(mod,ch,q){if(!q||q.kind==='build'&&!q.tiles)return;const l=mxList(),sig=JSON.stringify([q.ask,q.show,q.a]);
+  if(l.some(x=>x.sig===sig))return;l.push({sig,m:mod,ch,q,ok:0});ls.set(mxKey(),l.slice(-40))}
+function mxHit(sig,ok){const l=mxList(),x=l.find(y=>y.sig===sig);if(!x)return;if(ok){x.ok++;if(x.ok>=2){l.splice(l.indexOf(x),1);qev('fix')}}else x.ok=0;ls.set(mxKey(),l)}
+/* week quest */
+const weekKey=()=>{const d=new Date(),t=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())),day=t.getUTCDay()||7;t.setUTCDate(t.getUTCDate()+4-day);
+  const y=new Date(Date.UTC(t.getUTCFullYear(),0,1));return t.getUTCFullYear()+'-W'+String(Math.ceil(((t-y)/864e5+1)/7)).padStart(2,'0')};
+const QPOOL=[{ev:'set',n:2,t:'Pass 2 practice sets in any subject',href:'#learn'},{ev:'pune',n:1,t:'Earn a Pune Ride stamp',href:'#pune'},{ev:'mission',n:2,t:'Finish 2 quick missions',href:'#kids'},
+  {ev:'fix',n:3,t:'Fix 3 of your mistakes',href:'#practice'},{ev:'mixed',n:1,t:'Score 15 or more in a mixed test',href:'#practice'},{ev:'toy',n:5,t:'Get 5 right in the 3D toys',href:'#toys'}];
+function questTasks(){const w=weekKey(),seed=w.split('').reduce((a,c)=>a*31+c.charCodeAt(0)>>>0,7),idx=[];let s=seed;
+  while(idx.length<3){s=(s*1103515245+12345)>>>0;const i=s%QPOOL.length;if(idx.indexOf(i)<0)idx.push(i)}return idx.map(i=>QPOOL[i])}
+function questState(){let q=ls.get('ct_week');if(!q||q.wk!==weekKey())q={wk:weekKey(),ev:{},done:false};return q}
+function qev(name){const q=questState();q.ev[name]=(q.ev[name]||0)+1;const all=questTasks().every(t=>(q.ev[t.ev]||0)>=t.n);
+  if(all&&!q.done){q.done=true;ls.set('ct_trophies',(ls.get('ct_trophies')||0)+1);setTimeout(()=>toast('🏆 Weekly quest complete! You won a trophy.'),400)}ls.set('ct_week',q)}
+function questCard(){const q=questState(),ts=questTasks(),tro=ls.get('ct_trophies')||0;
+  return `<section class="card stack quest"><div class="row"><h2 style="margin-right:auto">🗺️ This week’s quest</h2><span class="pill">🏆 ${tro} troph${tro===1?'y':'ies'}</span></div>
+  ${ts.map(t=>{const n=Math.min(q.ev[t.ev]||0,t.n),ok=n>=t.n;return `<a class="qt${ok?' ok':''}" href="${t.href}"><span aria-hidden="true">${ok?'✅':'⬜'}</span><span class="grow">${t.t}</span><b>${n}/${t.n}</b></a>`}).join('')}
+  <p class="small muted">${q.done?'Quest complete! A new one starts on Monday.':'Finish all three by Sunday to win a trophy.'}</p></section>`}
+/* Tonight's 10 minutes */
+function tonight(){const out=[],mx=mxList().length,prog=kid?(kid.progress||{}):(ls.get('ct_ph')||{});
+  if(mx>=3)out.push(['🔁','Fix your mistakes',`${Math.min(mx,10)} questions you got wrong before`,'#practice','3 min']);
+  for(const m of Object.keys(MODS)){const M=MODS[m];if(!M.ch)continue;const c=M.ch.find(c=>{const s=chState(prog,m,c);return s.played&&!s.done});
+    if(c){out.push(['📘',M.name+': '+c.title,'Carry on where you stopped','#'+m,'4 min']);break}}
+  if(kid){const k=GK.find(k=>stat(kid,k).weak.length);if(k)out.push(['⚡',G[k].name,'Your tricky ones are waiting','#kids','3 min'])}
+  const pr=pzProg();if(out.length<3&&pr.done.length<PSTOPS.length)out.push(['🛺','Pune Ride: '+PSTOPS[Math.min(pr.at,PSTOPS.length-1)].name,'Next stop on your ride','#pune','3 min']);
+  if(out.length<3)out.push(['🧊','3D toys','Shapes, place value or fraction cake','#toys','3 min']);
+  return `<section class="card stack tonight"><h2>🌙 Tonight’s 10 minutes</h2>${out.slice(0,3).map(([e,t,s,h,m])=>`<a class="tn" href="${h}"><span aria-hidden="true">${e}</span><span class="grow"><b>${esc(t)}</b><small>${esc(s)}</small></span><em>${m}</em></a>`).join('')}</section>`}
+/* a small quiz runner for mistakes and mixed tests */
+let qz=null;
+function qzStart(kindName,qs,meta){qz={kind:kindName,q:qs,i:0,right:0,phase:'ask',input:'',built:[],meta:meta||{}};render();window.scrollTo(0,0)}
+function mixedQs(m,n){const M=MODS[m],prog=kid?(kid.progress||{}):(ls.get('ct_ph')||{});let chs=M.ch.filter(c=>chState(prog,m,c).played);if(chs.length<2)chs=M.ch;
+  const out=[];let guard=0;while(out.length<n&&guard++<200){const c=one(chs),qs=c.sets?one(c.sets).make():c.make(),q=one(qs);if(!out.some(x=>x.ask===q.ask&&x.show===q.show&&x.a===q.a))out.push(Object.assign({},q,{_m:m,_ch:c.n}))}return out}
+function qzView(){const a=qz.q[qz.i];
+  if(qz.phase==='done'){const n=qz.q.length,good=qz.right>=Math.ceil(n*.75);return `<section class="card stack center"><h1>${good?'Brilliant!':'Good effort!'}</h1><div class="stars">${'<span>★</span>'.repeat(Math.min(qz.right,20))}</div><div class="stat">${qz.right} of ${n}</div>
+   <p class="muted">${qz.kind==='mx'?'Questions you get right twice leave your mistakes list.':'Wrong answers were added to My mistakes, so you can fix them later.'}</p><div class="row" style="justify-content:center"><button class="btn go" data-act="qzback">Done</button></div></section>`}
+  let body;
+  if(qz.phase!=='ask')body=qz.phase==='ok'?`<div class="fb ok" role="status"><div class="win">${a.win||a.ah}</div><b>Yes!</b></div><button class="btn go" data-act="qznext">Next</button>`:`<div class="fb bad" role="alert"><b>Not yet. The answer is:</b><div>${a.ah}</div><p>${esc(a.hint||'')}</p></div><button class="btn go" data-act="qznext">Got it</button>`;
+  else if(a.kind==='pick')body=`<div class="opts">${a.opts.map(o=>`<button class="btn ${o.cls||''}" data-act="qzans" data-v="${esc(o.v)}">${o.h}</button>`).join('')}</div>`;
+  else if(a.kind==='num')body=`<div class="ans" aria-live="polite">${esc(qz.input)||' '}</div><div class="pad">${[1,2,3,4,5,6,7,8,9].map(d=>`<button class="btn" data-act="qzd" data-d="${d}">${d}</button>`).join('')}<button class="btn" data-act="qzb" aria-label="Delete">⌫</button><button class="btn" data-act="qzd" data-d="0">0</button><button class="btn go" data-act="qzok">OK</button></div>`;
+  else{const left=a.tiles.map((t,i)=>i).filter(i=>qz.built.indexOf(i)<0);body=`<div class="tiles slot">${qz.built.map((i,j)=>`<button class="tile" data-act="qzun" data-j="${j}">${esc(a.tiles[i])}</button>`).join('')||'<span class="muted small">Tap the tiles below</span>'}</div><div class="tiles">${left.map(i=>`<button class="tile" data-act="qztile" data-i="${i}">${esc(a.tiles[i])}</button>`).join('')}</div><button class="btn go" data-act="qzcheck">Check</button>`}
+  return `<section class="card stack"><div class="row"><h3 style="margin-right:auto">${qz.kind==='mx'?'My mistakes':'Mixed test: '+esc(MODS[qz.meta.m].name)}</h3><span class="pill">${qz.i+1} of ${qz.q.length}</span><button class="btn ghost" data-act="qzback">Stop</button></div>
+  <div class="bar"><i style="width:${qz.i/qz.q.length*100}%"></i></div>${a.show?`<div class="showbox">${a.show}</div>`:''}<div class="ask">${esc(a.ask)} ${canSay&&a.say?`<button class="btn" data-act="qzsay">Hear it</button>`:''}</div>${body}</section>`}
+function qzMark(ok){const a=qz.q[qz.i];if(ok)qz.right++;qz.phase=ok?'ok':'bad';
+  if(qz.kind==='mx')mxHit(a._sig,ok);else if(!ok)mxAdd(a._m,a._ch,a);render()}
+function practice(){if(qz)return qzView();const mx=mxList();
+  const mods=Object.keys(MODS).filter(m=>MODS[m].ch);
+  return `<section class="stack"><h1>Practice</h1><p class="muted lead">${kid?`Saved for <b>${esc(kid.name)}</b>.`:'Playing as a guest: this is saved on this device.'}</p></section>
+  ${tonight()}
+  <section class="card stack"><h2>🔁 My mistakes</h2>${mx.length?`<p>${mx.length} question${mx.length===1?'':'s'} to fix. Get each one right twice and it leaves the list.</p><div class="row"><button class="btn go" data-act="mxplay">Fix ${Math.min(10,mx.length)} now</button></div>`:'<p class="muted">Nothing here yet. Questions you get wrong in the chapters land here automatically.</p>'}</section>
+  <section class="card stack"><h2>🧩 Mixed revision test</h2><p class="muted">20 questions mixed from the chapters you have practised. Great before a school test.</p>
+  <div class="grid">${mods.map(m=>`<button class="btn" data-act="mixplay" data-m="${m}">${esc(MODS[m].name)}</button>`).join('')}</div></section>
+  ${questCard()}`}
+Object.assign(acts,{
+  mxplay(){const l=shuffle(mxList()).slice(0,10).map(x=>Object.assign({},x.q,{_sig:x.sig,_m:x.m,_ch:x.ch}));qzStart('mx',l)},
+  mixplay(d){qzStart('mixed',mixedQs(d.m,20),{m:d.m})},
+  qzback(){qz=null;render()},
+  qzans(d){if(qz.phase==='ask')qzMark(d.v===qz.q[qz.i].a)},
+  qzd(d){if(qz.phase==='ask'&&qz.input.length<7){qz.input+=d.d;render()}},qzb(){qz.input=qz.input.slice(0,-1);render()},
+  qzok(){if(qz.phase==='ask'&&qz.input)qzMark(String(parseInt(qz.input,10))===qz.q[qz.i].a)},
+  qztile(d){if(qz.phase==='ask'){qz.built.push(+d.i);render()}},qzun(d){if(qz.phase==='ask'){qz.built.splice(+d.j,1);render()}},
+  qzcheck(){const a=qz.q[qz.i];if(qz.phase==='ask'&&qz.built.length)qzMark(qz.built.map(i=>a.tiles[i]).join('|')===a.target.join('|'))},
+  qzsay(){const q=qz.q[qz.i];say(q.say,q.lang)},
+  qznext(){qz.i++;qz.input='';qz.built=[];if(qz.i>=qz.q.length){qz.phase='done';if(qz.kind==='mixed'&&qz.right>=15)qev('mixed');if(kid){kid.stars=(kid.stars||0)+qz.right;saveKid()}}else qz.phase='ask';render();window.scrollTo(0,0)}
+});
+
+/* ====== 3D toys: shapes explorer, place-value blocks, fraction cake ====== */
+const SHAPES=[{k:'cube',n:'Cube',f:6,e:12,v:8,real:'dice, ice cube'},{k:'cuboid',n:'Cuboid',f:6,e:12,v:8,real:'brick, book, lunch box'},
+ {k:'cylinder',n:'Cylinder',f:3,e:2,v:0,real:'tin, pipe, glass',fnote:'2 flat + 1 curved'},{k:'cone',n:'Cone',f:2,e:1,v:1,real:'ice-cream cone, funnel',fnote:'1 flat + 1 curved'},
+ {k:'sphere',n:'Sphere',f:1,e:0,v:0,real:'ball, globe',fnote:'1 curved'},{k:'pyramid',n:'Square pyramid',f:5,e:8,v:5,real:'pyramids of Egypt, tent'},
+ {k:'prism',n:'Triangular prism',f:5,e:9,v:6,real:'tent, Toblerone box'}];
+let toy={tab:'shapes',shape:'cube',edges:true,q:null,fb:null,num:347,cake:{n:4,sel:[]},input:''},T3=null;
+function toyQ(){const t=toy.tab;
+  if(t==='shapes'){const s=one(SHAPES),what=one(['f','e','v','name']);toy.shape=s.k;
+    if(what==='name')return{ask:'Which shape is this?',a:s.n,opts:shuffle([s.n,...sample(SHAPES.filter(x=>x!==s).map(x=>x.n),3)])};
+    const w={f:'faces',e:'edges',v:'vertices (corners)'}[what],a=s[what];return{ask:`How many ${w} does a ${s.n.toLowerCase()} have?`,a:String(a),opts:shuffle(uniq([a,a+1,Math.max(0,a-1),a+2,a+4].map(String))).slice(0,4).concat([]).sort((x,y)=>x-y)}}
+  if(t==='place'){const n=rnd(11,999);toy.num=n;const kind=one(['read','h','t','o']);
+    if(kind==='read')return{ask:'What number do the blocks show?',a:String(n),num:true};
+    const p={h:['hundreds',Math.floor(n/100)],t:['tens',Math.floor(n/10)%10],o:['ones',n%10]}[kind];
+    return{ask:`How many ${p[0]} are in ${n}?`,a:String(p[1]),num:true}}
+  const n=one([2,3,4,5,6,8]),k=rnd(1,n-1);toy.cake={n,sel:[],target:[k,n]};return{ask:`Tap the slices to make ${k}/${n} of the cake pink.`,a:'cake'}}
+function toys(){const s=SHAPES.find(x=>x.k===toy.shape),q=toy.q;
+  const tabs=[['shapes','🔷 Shapes'],['place','🧱 Place value'],['cake','🎂 Fraction cake']];
+  let side='';
+  if(toy.tab==='shapes')side=`<div class="chips toy-pick">${SHAPES.map(x=>`<button class="btn${x.k===toy.shape?' go':''}" data-act="tshape" data-k="${x.k}">${x.n}</button>`).join('')}</div>
+   <div class="tw"><table><tr><th>Faces</th><th>Edges</th><th>Vertices</th></tr><tr><td>${s.f}${s.fnote?' <small>('+s.fnote+')</small>':''}</td><td>${s.e}</td><td>${s.v}</td></tr></table></div>
+   <p class="small muted">Real life: ${s.real}. Drag to turn it.</p><label class="ckband"><input type="checkbox" data-change="tedges" ${toy.edges?'checked':''}> Show edges and corners</label>`;
+  if(toy.tab==='place'){const n=toy.num;side=`<p class="toy-num"><b>${Math.floor(n/100)}</b> hundreds + <b>${Math.floor(n/10)%10}</b> tens + <b>${n%10}</b> ones = <b>${q&&q.num&&!toy.fb?'?':n}</b></p>
+   <div class="row"><label>Try your own number<input id="toy-n" inputmode="numeric" maxlength="3" value="${q?'':n}" style="width:7em"></label><button class="btn" data-act="tnum">Show</button></div>
+   <p class="small muted">Flat = 100, rod = 10, small cube = 1.</p>`}
+  if(toy.tab==='cake'){const c=toy.cake;side=`<div class="row"><span>Slices:</span>${[2,3,4,5,6,8].map(n=>`<button class="btn${c.n===n?' go':''}" data-act="tcake" data-n="${n}">${n}</button>`).join('')}</div>
+   <p class="toy-num"><b>${c.sel.length}/${c.n}</b> is pink${c.sel.length&&c.sel.length<c.n&&gcd(c.sel.length,c.n)>1?` = <b>${c.sel.length/gcd(c.sel.length,c.n)}/${c.n/gcd(c.sel.length,c.n)}</b>`:''}. Tap a slice to colour it.</p>`}
+  let qhtml='';
+  if(q){qhtml=`<div class="ask">${esc(q.ask)}</div>`+(toy.fb?`<div class="fb ${toy.fb[0]?'ok':'bad'}" role="status"><b>${toy.fb[0]?'Yes!':'Not quite.'}</b> ${esc(toy.fb[1])}</div><button class="btn go" data-act="tq">Next question</button>`
+    :q.a==='cake'?`<button class="btn go" data-act="tcakecheck">Check my cake</button>`:q.num?`<div class="ans" aria-live="polite">${esc(toy.input)||' '}</div><div class="pad">${[1,2,3,4,5,6,7,8,9].map(d=>`<button class="btn" data-act="tqd" data-d="${d}">${d}</button>`).join('')}<button class="btn" data-act="tqb" aria-label="Delete">⌫</button><button class="btn" data-act="tqd" data-d="0">0</button><button class="btn go" data-act="tqok">OK</button></div>`
+    :`<div class="opts">${q.opts.map(o=>`<button class="btn txt" data-act="tqans" data-v="${esc(o)}">${esc(o)}</button>`).join('')}</div>`)}
+  return `<section class="stack"><h1>3D toys</h1><p class="muted">Turn, tap and count. Then try a question.</p>
+  <div class="tabs">${tabs.map(([k,l])=>`<button class="btn" data-act="ttoy" data-t="${k}" aria-pressed="${toy.tab===k}">${l}</button>`).join('')}</div></section>
+  <div class="toy-wrap"><div class="kw-stage toy-stage" id="toystage"><canvas id="toyc" role="img" aria-label="3D model"></canvas><p class="kw-flat">3D could not load on this device.</p></div>
+  <section class="card stack">${side}${q?qhtml:`<button class="btn go" data-act="tq">Ask me a question</button>`}</section></div>`}
+function unmountToys(){if(T3){cancelAnimationFrame(T3.raf);try{T3.ro.disconnect()}catch(e){}try{T3.r.dispose()}catch(e){}T3=null}}
+function mountToys(){const st=document.getElementById('toystage');if(!st)return;
+  if(T3&&T3.canvas===document.getElementById('toyc')){T3.build();return}unmountToys();
+  loadThree().then(()=>{if(view==='toys')toy3d()}).catch(()=>st.classList.add('flat'))}
+function toy3d(){const THREE_=THREE,cv=document.getElementById('toyc'),st=document.getElementById('toystage');let r;
+  try{r=new THREE_.WebGLRenderer({canvas:cv,antialias:true,alpha:true})}catch(e){st.classList.add('flat');return}
+  r.setPixelRatio(Math.min(window.devicePixelRatio||1,2));const sc=new THREE_.Scene(),cam=new THREE_.PerspectiveCamera(40,1,.1,100);
+  sc.add(new THREE_.HemisphereLight(0xffffff,0x8899aa,.95));const dl=new THREE_.DirectionalLight(0xffffff,.7);dl.position.set(4,8,6);sc.add(dl);
+  const g=new THREE_.Group();sc.add(g);const M=c=>new THREE_.MeshLambertMaterial({color:c});const reduce=RM();
+  const addEdges=(mesh,col)=>{const e=new THREE_.LineSegments(new THREE_.EdgesGeometry(mesh.geometry,20),new THREE_.LineBasicMaterial({color:col||0x1F3B2D}));mesh.add(e)};
+  const dots=(mesh,pts)=>pts.forEach(p=>{const d=new THREE_.Mesh(new THREE_.SphereGeometry(.07,10,8),M(0xE2583E));d.position.copy(p);mesh.add(d)});
+  function build(){while(g.children.length)g.remove(g.children[0]);g.rotation.set(-.35,.6,0);let dist=6;
+    if(toy.tab==='shapes'){const k=toy.shape;let geo;
+      if(k==='cube')geo=new THREE_.BoxGeometry(2,2,2);if(k==='cuboid')geo=new THREE_.BoxGeometry(3,1.4,1.8);if(k==='cylinder')geo=new THREE_.CylinderGeometry(1,1,2.2,40);
+      if(k==='cone')geo=new THREE_.ConeGeometry(1.2,2.4,40);if(k==='sphere')geo=new THREE_.SphereGeometry(1.4,40,28);if(k==='pyramid'){geo=new THREE_.ConeGeometry(1.6,2.2,4);geo.rotateY(Math.PI/4)}
+      if(k==='prism'){geo=new THREE_.CylinderGeometry(1.3,1.3,2.6,3);geo.rotateZ(Math.PI/2)}
+      const m=new THREE_.Mesh(geo,new THREE_.MeshLambertMaterial({color:0xF4A300,transparent:true,opacity:.92}));g.add(m);
+      if(toy.edges&&k!=='sphere'){addEdges(m);const pos=geo.attributes.position,seen=[];if(['cube','cuboid','pyramid','prism','cone'].indexOf(k)>=0){
+        for(let i=0;i<pos.count;i++){const v=new THREE_.Vector3().fromBufferAttribute(pos,i);if(seen.some(s=>s.distanceTo(v)<.01))continue;seen.push(v)}
+        const want={cube:8,cuboid:8,pyramid:5,prism:6,cone:1}[k];let pts=seen;
+        if(k==='cone')pts=[seen.reduce((a,b)=>b.y>a.y?b:a)];else if(k==='pyramid')pts=seen.filter(v=>Math.abs(v.y)>.5&&(v.y>0||Math.hypot(v.x,v.z)>1));
+        else if(k==='prism')pts=seen.filter(v=>Math.hypot(v.y,v.z)>1);if(pts.length>=want)dots(m,pts.slice(0,want))}}}
+    if(toy.tab==='place'){const n=toy.num,h=Math.floor(n/100),t=Math.floor(n/10)%10,o=n%10,u=.2;dist=Math.max(6,2+h*.9);
+      const cube=new THREE_.BoxGeometry(u*.92,u*.92,u*.92);let x=-((h*2.3+t*.35+Math.ceil(o/5)*.35))/2;
+      for(let i=0;i<h;i++){const f=new THREE_.Mesh(new THREE_.BoxGeometry(u*10,u*10,u),M(0x2F80C0));f.position.set(x+u*5,0,0);addEdges(f,0xffffff);g.add(f);x+=u*10+.3}
+      for(let i=0;i<t;i++){const rr=new THREE_.Mesh(new THREE_.BoxGeometry(u,u*10,u),M(0x1E6B3A));rr.position.set(x+u/2,0,0);addEdges(rr,0xffffff);g.add(rr);x+=u+.15}
+      for(let i=0;i<o;i++){const c=new THREE_.Mesh(cube,M(0xF4A300));c.position.set(x+Math.floor(i/5)*(u+.08)+u/2,-u*4.5+(i%5)*(u+.04),0);g.add(c)}
+      g.rotation.set(-.15,.25,0)}
+    if(toy.tab==='cake'){const c=toy.cake,R=2,H=.9;for(let i=0;i<c.n;i++){const a=i*2*Math.PI/c.n,on=c.sel.indexOf(i)>=0;
+      const geo=new THREE_.CylinderGeometry(R,R,H,48,1,false,a+.02,2*Math.PI/c.n-.04);const m=new THREE_.Mesh(geo,M(on?0xE2583E:0xF6E7C8));
+      const mid=a+Math.PI/c.n;m.position.set(Math.sin(mid)*.06,0,Math.cos(mid)*.06);m.userData.slice=i;addEdges(m,0x8B5E34);g.add(m)}
+      const plate=new THREE_.Mesh(new THREE_.CylinderGeometry(R+.4,R+.4,.08,48),M(0xffffff));plate.position.y=-H/2-.05;g.add(plate);g.rotation.set(.75,0,0);dist=7}
+    fit()}
+  function fit(){const b=new THREE_.Box3().setFromObject(g),sz=b.getSize(new THREE_.Vector3()),c=b.getCenter(new THREE_.Vector3()),R=Math.max(sz.x,sz.y,sz.z)*.5+.3;
+    const half=Math.tan(cam.fov*Math.PI/360),d=Math.max(R/half,R/(half*cam.aspect))*1.08;cam.position.set(c.x,c.y,c.z+d);cam.lookAt(c)}
+  let drag=null,moved=0;const ray=new THREE_.Raycaster(),pt=new THREE_.Vector2();
+  cv.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY};moved=0;try{cv.setPointerCapture(e.pointerId)}catch(_){}});
+  cv.addEventListener('pointermove',e=>{if(!drag)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;drag={x:e.clientX,y:e.clientY};moved+=Math.abs(dx)+Math.abs(dy);g.rotation.y+=dx*.01;g.rotation.x=Math.max(-1.4,Math.min(1.4,g.rotation.x+dy*.01))});
+  cv.addEventListener('pointerup',e=>{const was=drag;drag=null;if(!was||moved>6||toy.tab!=='cake')return;const b=cv.getBoundingClientRect();pt.set((e.clientX-b.left)/b.width*2-1,-((e.clientY-b.top)/b.height)*2+1);
+    ray.setFromCamera(pt,cam);const hit=ray.intersectObjects(g.children,false).find(h=>h.object.userData.slice!=null);if(!hit)return;const i=hit.object.userData.slice,s=toy.cake.sel,k=s.indexOf(i);if(k<0)s.push(i);else s.splice(k,1);render()});
+  const size=()=>{const w=st.clientWidth,h=st.clientHeight;r.setSize(w,h,false);cam.aspect=w/h;cam.updateProjectionMatrix();if(g.children.length)fit()};const ro=new ResizeObserver(size);ro.observe(st);size();build();
+  const frame=()=>{if(!drag&&!reduce&&toy.tab==='shapes')g.rotation.y+=.004;r.render(sc,cam);T3.raf=requestAnimationFrame(frame)};
+  T3={r,ro,raf:0,canvas:cv,build};T3.raf=requestAnimationFrame(frame)}
+function toyAnswer(ok,txt){toy.fb=[ok,txt];if(ok)qev('toy');render()}
+Object.assign(acts,{
+  ttoy(d){toy.tab=d.t;toy.q=null;toy.fb=null;toy.input='';if(d.t==='cake')toy.cake={n:toy.cake.n,sel:[]};render()},
+  tshape(d){toy.shape=d.k;toy.q=null;toy.fb=null;render()},
+  tnum(){const n=parseInt(val('toy-n'),10);if(n>=1&&n<=999){toy.num=n;toy.q=null;toy.fb=null;render()}else toast('Type a number from 1 to 999.',true)},
+  tcake(d){toy.cake={n:+d.n,sel:[]};toy.q=null;toy.fb=null;render()},
+  tq(){toy.fb=null;toy.input='';toy.q=toyQ();render()},
+  tqans(d){if(toy.fb)return;const q=toy.q,ok=d.v===q.a,s=SHAPES.find(x=>x.k===toy.shape);toyAnswer(ok,ok?'':`The answer is ${q.a}. A ${s.n.toLowerCase()} has ${s.f} faces, ${s.e} edges and ${s.v} vertices.`)},
+  tqd(d){if(!toy.fb&&toy.input.length<3){toy.input+=d.d;render()}},tqb(){toy.input=toy.input.slice(0,-1);render()},
+  tqok(){if(toy.fb||!toy.input)return;const ok=String(parseInt(toy.input,10))===toy.q.a,n=toy.num;toyAnswer(ok,ok?'':`The answer is ${toy.q.a}: ${Math.floor(n/100)} hundreds, ${Math.floor(n/10)%10} tens, ${n%10} ones = ${n}.`)},
+  tcakecheck(){const c=toy.cake,[k,n]=c.target,ok=c.sel.length*n===k*c.n;toyAnswer(ok,ok?'':`${k}/${n} means ${k} of ${n} equal slices. You coloured ${c.sel.length}/${c.n}.`)}
+});
+document.addEventListener('change',e=>{if(e.target.dataset.change==='tedges'){toy.edges=e.target.checked;if(T3)T3.build()}});
+
+/* ====== parent reviews (from config.js; hidden until real ones are added) ====== */
+function reviews(){const R=(CFG.REVIEWS||[]).filter(r=>r&&r.text);if(!R.length)return '';
+  return `<section class="stack"><h2>${LANG==='mr'?'पालक काय म्हणतात':LANG==='hi'?'माता-पिता क्या कहते हैं':'What parents say'}</h2><div class="grid reviews">${R.slice(0,6).map(r=>`<figure class="card review"><blockquote>“${esc(r.text)}”</blockquote><figcaption>${esc(r.who||'')}</figcaption></figure>`).join('')}</div></section>`}
+/* ====== visitor counts (GoatCounter, cookie-free; off unless set in config.js) ====== */
+let gcReady=false;
+function gcCount(){if(!CFG.GOATCOUNTER||view==='teacher')return;const go=()=>{try{window.goatcounter.count({path:'/'+(view||'home'),title:view})}catch(e){}};
+  if(gcReady)return go();if(document.getElementById('gcjs'))return;const s=document.createElement('script');s.id='gcjs';s.async=true;s.src='https://gc.zgo.at/count.js';
+  s.dataset.goatcounter='https://'+String(CFG.GOATCOUNTER).replace(/[^a-z0-9-]/gi,'')+'.goatcounter.com/count';s.dataset.goatcounterSettings='{"no_onload":true}';
+  s.onload=()=>{gcReady=true;go()};document.head.appendChild(s)}
+/* ====== error reporting to the Sheet's "errors" tab (no personal data) ====== */
+let errSent=0;
+function reportError(m,src,line){if(!SYNC_URL||errSent>=3)return;errSent++;
+  try{call('err',{e:{m:String(m||'').slice(0,200),src:String(src||'').split('/').pop().slice(0,60),line:+line||0,view,ua:navigator.userAgent.slice(0,120)}},0).catch(()=>{})}catch(e){}}
+window.addEventListener('error',e=>reportError(e.message,e.filename,e.lineno));
+window.addEventListener('unhandledrejection',e=>{const r=e.reason;if(r&&/offline|Wrong PIN|Too many|Google sign-in|Only Chetana/.test(r.message||''))return;reportError('promise: '+(r&&r.message||r),'',0)});
+
 document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(b&&acts[b.dataset.act]){if(b.tagName==='BUTTON'&&b.type!=='submit'||b.tagName!=='BUTTON')e.preventDefault();acts[b.dataset.act](b.dataset)}});
 document.addEventListener('submit',e=>{const f=e.target.closest('[data-form]');if(f){e.preventDefault();forms[f.dataset.form]()}});
 document.addEventListener('change',e=>{const el=e.target.closest('[data-change="estatus"]');if(el){const en=tdata.enquiries.find(x=>x.id===el.dataset.id);en.status=el.value;S.tPut(tpin,'enquiries',en).then(render).catch(tfail)}});
 
-function render(){if(view!=='world')unmountWorld();app.innerHTML=view==='kids'?kids():view==='teacher'?teacher():MODS[view]?modPage():view==='programmes'?programmes():view==='about'?about():view==='learn'?learn():view==='faq'?faq():view==='book'?book():view==='world'?world():view==='check'?check():view==='pune'?pune():view==='privacy'?privacy():home();
-  if(view==='world')mountWorld();const nv=['phonics','maths','kids','bhasha','grammar','pune'].indexOf(view)>=0?'learn':view;document.querySelectorAll('.top nav a').forEach(a=>{if(a.getAttribute('href')==='#'+nv)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current')})}
-function route(){const h=(location.hash||'').slice(1);view=['home','kids','teacher','phonics','maths','programmes','about','learn','faq','book','bhasha','grammar','world','check','pune','privacy'].indexOf(h)>=0?h:'home';if(MODS[view]){cm=view;if(ps&&ps.mod!==cm)ps=null}msg='';buf='';pick=null;armed=null;render()}
+function render(){if(view!=='world')unmountWorld();if(view!=='toys')unmountToys();applyLang();const NEED=MODS[view]?[view]:['teacher','kids','world','practice'].indexOf(view)>=0?Object.keys(MODS):[];if(!needMods(NEED)){app.innerHTML='<p class="muted center" role="status">Loading\u2026</p>';return}app.innerHTML=view==='kids'?kids():view==='teacher'?teacher():MODS[view]?modPage():view==='programmes'?programmes():view==='about'?about():view==='learn'?learn():view==='faq'?faq():view==='book'?book():view==='world'?world():view==='check'?check():view==='pune'?pune():view==='privacy'?privacy():view==='practice'?practice():view==='toys'?toys():home();
+  if(LANG!=='en'&&['home','programmes','about','teacher','faq','book','check','privacy'].indexOf(view)<0)app.insertAdjacentHTML('afterbegin',`<p class="langnote" lang="${LANG}">${LANG==='mr'?'हे पान सध्या इंग्रजीत आहे.':'यह पेज अभी अंग्रेज़ी में है।'}</p>`);
+  if(view==='world')mountWorld();if(view==='toys')mountToys();const nv=['phonics','maths','kids','bhasha','grammar','pune','mgram','hgram','toys','practice'].indexOf(view)>=0?'learn':view;document.querySelectorAll('.top nav a').forEach(a=>{if(a.getAttribute('href')==='#'+nv)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current')})}
+function route(){qz=null;setTimeout(gcCount,0);const h=(location.hash||'').slice(1);view=['home','kids','teacher','phonics','maths','programmes','about','learn','faq','book','bhasha','grammar','world','check','pune','privacy','mgram','hgram','toys','practice'].indexOf(h)>=0?h:'home';if(MODS[view]){cm=view;if(ps&&ps.mod!==cm)ps=null}msg='';buf='';pick=null;armed=null;render()}
 window.addEventListener('hashchange',route);route();
+
+/* ====== installable app: offline support ====== */
+if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost'||location.hostname==='127.0.0.1'))
+  window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{})});
+
+Object.assign(acts,{lang(d){LANG=d.l;ls.set('ct_lang',LANG);render()}});
+/* keyboard: Enter or Space on custom buttons (map stops, etc.) works like a tap */
+document.addEventListener('keydown',e=>{if(e.key!=='Enter'&&e.key!==' ')return;const t=e.target;if(t.getAttribute&&t.getAttribute('role')==='button'&&t.dataset&&t.dataset.act&&acts[t.dataset.act]){e.preventDefault();acts[t.dataset.act](t.dataset)}});
