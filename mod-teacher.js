@@ -469,6 +469,7 @@ function cardsView(){if(!cb)cb=Object.assign(cbBlank(),CB_TEMPLATES[0],{id:''});
    <div class="row"><label class="grow">Save as<input data-cb="name" maxlength="40" value="${esc(cb.name)}" placeholder="e.g. Week 5 fractions"></label><button class="btn navy" data-act="cbsave">Save</button>${cb.id?`<button class="btn ghost" data-act="cbdel">${armed==='cb'?'Tap again':'Delete'}</button>`:''}</div></section>
   <section class="card stack cb-prev"><canvas id="cbc" class="cbc" role="img" aria-label="Preview of the concept card"></canvas>
    <div class="row"><button class="btn go" data-act="cbdown">Download image</button>${navigator.share?'<button class="btn" data-act="cbshare">Share</button>':''}</div>
+   <div class="card stack" style="margin-top:.6rem"><b>Society noticeboard poster (A4)</b><p class="small muted">Printable poster with a QR code to the free monthly challenge. No phone number on it.</p><button class="btn" data-act="poster">Download A4 poster</button></div>
    ${cb.layout==='quiz'?'<p class="small muted">Quiz cards come in two images: the question, and the answer to post later.</p><div class="row"><button class="btn" data-act="cbdown" data-ans="1">Download answer image</button></div>':''}</section></div>`}
 let cbFontsReady=null;
 function cbFonts(){return cbFontsReady=cbFontsReady||Promise.all(['700 60px Kalam','800 40px "Nunito Sans"','600 30px "Nunito Sans"','700 40px "Noto Sans Devanagari"'].map(f=>document.fonts.load(f).catch(()=>{}))).catch(()=>{})}
@@ -670,4 +671,15 @@ Object.assign(forms,{lmgen(){const f=lm.form={topic:val('lm-topic'),grade:val('l
 let lmT=null;
 document.addEventListener('input',e=>{const p=e.target.dataset&&e.target.dataset.lm;if(!p||!lm.d)return;lmSet(p,e.target.value);clearTimeout(lmT);lmT=setTimeout(()=>{const el=document.getElementById('lmchk');if(el){const er=lmCheck(lm.d);el.className='card stack '+(er.length?'lm-bad':'lm-ok');el.innerHTML=lmChkHtml(er)}},300)});
 document.addEventListener('change',e=>{const p=e.target.dataset&&e.target.dataset.lm;if(p&&lm.d&&/\.type$/.test(p)){lmSet(p,e.target.value);render()}});
+function posterCanvas(){return new Promise((res,rej)=>{if(window.qrcode)return res();const t=document.createElement('script');t.src='vendor/qrcode.js';t.onload=res;t.onerror=rej;document.head.appendChild(t)}).then(()=>document.fonts.load('700 80px Kalam').catch(()=>{})).then(()=>{
+  const W=2480,H=3508,c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d');x.fillStyle='#FFF8E6';x.fillRect(0,0,W,H);
+  x.fillStyle='#2F5A44';x.fillRect(0,0,W,900);x.textAlign='center';x.fillStyle='#fff';x.font='700 190px Kalam, sans-serif';x.fillText('Free Maths Challenge',W/2,400);
+  x.font='600 100px "Nunito Sans", sans-serif';x.fillStyle='#FFD27A';x.fillText('for every child in Grades 1–7',W/2,600);x.fillStyle='#fff';x.font='600 80px "Nunito Sans", sans-serif';x.fillText('New questions every month · 2 minutes · on any phone',W/2,760);
+  const q=qrcode(0,'M');q.addData('https://palatshahachetana.github.io/#challenge');q.make();const n=q.getModuleCount(),cell=Math.floor(1300/(n+4)),sz=cell*(n+4),ox=(W-sz)/2,oy=1050;
+  x.fillStyle='#fff';x.fillRect(ox,oy,sz,sz);x.fillStyle='#111';for(let r=0;r<n;r++)for(let k=0;k<n;k++)if(q.isDark(r,k))x.fillRect(ox+(k+2)*cell,oy+(r+2)*cell,cell,cell);
+  x.fillStyle='#1F3B2D';x.font='700 120px Kalam, sans-serif';x.fillText('Scan to play →',W/2,oy+sz+170);
+  x.font='600 78px "Nunito Sans", sans-serif';['🏆  Junior & Senior levels    🐉  Boss battles','🏝️  Build your own island    🎤  Read-aloud stars'].forEach((l,i)=>x.fillText(l,W/2,oy+sz+380+i*120));
+  x.fillStyle='#2F5A44';x.fillRect(0,H-520,W,520);x.fillStyle='#fff';x.font='700 130px Kalam, sans-serif';x.fillText("Chetana's Tutoring",W/2,H-330);
+  x.font='600 72px "Nunito Sans", sans-serif';x.fillStyle='#FFD27A';x.fillText('Grades 1–10 · Sparklet, Megapolis, Hinjawadi · and online',W/2,H-200);x.fillStyle='#EEE8DA';x.fillText('palatshahachetana.github.io',W/2,H-100);return c})}
+Object.assign(acts,{poster(){posterCanvas().then(c=>c.toBlob(b=>{const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='challenge-poster-A4.png';document.body.appendChild(a);a.click();a.remove()},'image/png'))}});
 window.teacherReady=true;

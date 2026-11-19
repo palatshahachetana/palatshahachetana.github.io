@@ -30,7 +30,7 @@ const KINDS = ['students', 'enquiries', 'batches', 'classes', 'fees', 'notes', '
 const GENS_PER_DAY = 40;
 const MAX_UPLOAD = 7 * 1024 * 1024;   // ~5 MB file once base64-encoded
 const DOC_TYPES = /^(application\/pdf|image\/(jpeg|png|webp)|application\/vnd\.openxmlformats-officedocument\.(wordprocessingml\.document|spreadsheetml\.sheet|presentationml\.presentation)|application\/msword)$/;
-const KEEP = ['progress', 'stars', 'sessions', 'teach'];
+const KEEP = ['progress', 'stars', 'sessions', 'teach', 'fun'];
 const SCHEMA = 1;
 const MAX_TRIES = 5, LOCK_SECONDS = 15 * 60, MAX_JSON = 50000, LEADS_PER_DAY = 30, KEEP_BACKUPS = 30, RETAIN_DAYS = 365;
 
@@ -249,7 +249,7 @@ function handle(q) {
       const rows = read('enquiries');
       if (rows.some(function (r) { return r.id === id; })) return { ok: true, data: true };
       const e = { id: id, parent: clip(o.parent, 40) || '(not given)', child: clip(o.child, 20), grade: clip(o.grade, 12),
-        phone: clip(o.phone, 16).replace(/[^\d+ ]/g, ''), source: o.source === 'Starting check' ? 'Starting check' : 'Website',
+        phone: clip(o.phone, 16).replace(/[^\d+ ]/g, ''), source: ['Starting check', 'Monthly challenge'].indexOf(o.source) >= 0 ? o.source : 'Website',
         note: clip(o.note, 400), status: 'New', date: today_() };
       put('enquiries', id, e, rows);
       log('lead', 'enquiries', id, e.source + ': ' + e.parent);
