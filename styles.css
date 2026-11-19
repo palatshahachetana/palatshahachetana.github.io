@@ -232,3 +232,4 @@ details.card h4{margin:14px 0 4px;font-size:15px;color:var(--accent)}details.car
 .wsa{font-weight:700}.wso{display:flex;flex-wrap:wrap;gap:6px 22px;margin-top:4px}.wsl{border-bottom:1px solid #999;height:26px;max-width:320px}.ws-key{margin-top:24px}.ws-keyl li{margin:0 0 4px}
 .ws-print .dev{color:#111}
 @media print{.ws-print{padding:0}.ws-key{break-before:page}.ws-print *{color:#000!important;background:none!important}}
+.lm-sec,.lm-q{border:1px solid var(--line);border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:8px}.lm-bad{border:2px solid var(--bad)}.lm-ok{border:2px solid #1E6B3A}

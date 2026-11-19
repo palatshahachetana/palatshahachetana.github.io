@@ -205,4 +205,19 @@ check('marks and assignments: teacher limits; kid login carries own assignments'
   assert.match(post({ action: 'tDel', pin: A, kind: 'assign', id: 'a3' }).error, /Only Chetana/);
   assert.ok(post({ action: 'tDel', pin: A, kind: 'assign', id: 'a1' }).ok);
 });
+check('lesson maker: needs key, sends only the topic, daily cap; public list shows published only', () => {
+  assert.match(post({ action: 'tGen', pin: T, o: { topic: 'Fractions' } }).error, /not set up/);
+  props.setProperty('GEMINI_KEY', 'k'); props.setProperty('GEMINI_MODEL', 'm');
+  let sent = null;
+  ctx.UrlFetchApp.fetch = (url, opt) => { sent = { url, opt }; return { getResponseCode: () => 200, getContentText: () => JSON.stringify({ candidates: [{ content: { parts: [{ text: '{"title":"Fractions","questions":[]}' }] } }] }) }; };
+  const r = post({ action: 'tGen', pin: T, o: { topic: 'Fractions', grade: '4', board: 'CBSE', lang: 'en', nq: 20, student: 'Aarav' } });
+  assert.strictEqual(r.data.title, 'Fractions');
+  assert.ok(sent.url.includes('generativelanguage.googleapis.com') && !sent.url.includes('key=') && sent.opt.headers['x-goog-api-key'] === 'k');
+  assert.ok(!sent.opt.payload.includes('Aarav'), 'no student data in the prompt');
+  post({ action: 'tPut', pin: T, kind: 'lessons', o: { id: 'L1', no: 1, title: 'A', status: 'published', questions: [], by: '' } });
+  post({ action: 'tPut', pin: T, kind: 'lessons', o: { id: 'L2', no: 2, title: 'B', status: 'draft', questions: [], by: '' } });
+  const pub = post({ action: 'lessons' }).data;
+  assert.deepStrictEqual(pub.map(l => l.id), ['L1']); assert.ok(!('by' in pub[0]));
+  assert.match(post({ action: 'tDel', pin: '246824', kind: 'lessons', id: 'L1' }).error, /Only Chetana/);
+});
 console.log(n + ' checks\nALL OK');

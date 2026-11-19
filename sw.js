@@ -1,6 +1,6 @@
 /* Offline support. Same-site files only: always try the network first (so updates show at once),
    and fall back to the last saved copy when there is no internet. Google Sheet calls are never cached. */
-const CACHE = 'ct-v4';
+const CACHE = 'ct-v5';
 const SHELL = ['./', 'index.html', 'app.js', 'styles.css', 'config.js', 'img/logo.jpg', 'img/chetana.jpg', 'img/icon.png', 'manifest.webmanifest'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => {

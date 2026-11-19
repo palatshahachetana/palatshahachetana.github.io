@@ -57,3 +57,10 @@ To turn it off: run `setGoogleSignIn` with `CLIENT_ID = ''` and clear `GOOGLE_CL
 - **Test marks:** on each student's page, with a trend line; included in weekly and monthly reports.
 - **Parent guide:** public page at #guide (English, Marathi, Hindi), printable.
 - Opening any children's area (Kids' Zone, Kids' World, Practice...) locks the teacher console automatically.
+
+## Lesson maker (AI)
+Teacher console > **Lessons**: type any topic, pick grade, board, language and number of questions. Gemini drafts a concept page,
+worked examples, questions and a concept card. Chetana edits and fixes anything flagged, then **Publish**: it appears under
+Learn > Chetana's lessons, and in Assign and Worksheets. She can also write lessons by hand without the AI.
+Setup (once): get a free key at https://aistudio.google.com > Get API key. In Apps Script, paste it into `setGeminiKey`, Run, then clear it and save.
+Only the topic is sent to the AI. Limit: 40 lessons a day. If Google retires the model, change `MODEL` in `setGeminiKey` and run it again.

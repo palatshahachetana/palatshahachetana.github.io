@@ -64,7 +64,7 @@ def test_second_teacher_sees_a_limited_console(page):
     page.go("teacher")
     pin(page, "135790"); page.click("[data-act=po]")
     page.wait_for_selector(".tc-tabs")
-    assert page.locator(".tc-tabs .btn").all_inner_texts() == ["Today", "Students", "Notes", "Roadmaps", "Assign", "Worksheets", "Cards", "Help"]
+    assert page.locator(".tc-tabs .btn").all_inner_texts() == ["Today", "Students", "Notes", "Roadmaps", "Lessons", "Assign", "Worksheets", "Cards", "Help"]
     assert page.locator(".tc-stats").count() == 0
     page.click("[data-act=ttab][data-t=students]")
     assert page.locator("[data-form=addstudent]").count() == 0

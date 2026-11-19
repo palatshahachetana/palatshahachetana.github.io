@@ -26,7 +26,8 @@
  * - Monthly clean-up: deletes children marked Left for over 12 months (fee entries kept) and old
  *   enquiries that never joined, as promised on the website's Privacy page.
  */
-const KINDS = ['students', 'enquiries', 'batches', 'classes', 'fees', 'notes', 'roadmaps', 'docs', 'marks', 'assign'];
+const KINDS = ['students', 'enquiries', 'batches', 'classes', 'fees', 'notes', 'roadmaps', 'docs', 'marks', 'assign', 'lessons'];
+const GENS_PER_DAY = 40;
 const MAX_UPLOAD = 7 * 1024 * 1024;   // ~5 MB file once base64-encoded
 const DOC_TYPES = /^(application\/pdf|image\/(jpeg|png|webp)|application\/vnd\.openxmlformats-officedocument\.(wordprocessingml\.document|spreadsheetml\.sheet|presentationml\.presentation)|application\/msword)$/;
 const KEEP = ['progress', 'stars', 'sessions', 'teach'];
@@ -45,6 +46,19 @@ function setGoogleSignIn() {
   p.setProperty('G_CLIENT', CLIENT_ID); p.setProperty('OWNER_EMAIL', OWNER_EMAIL.toLowerCase().trim());
   log('setup', '', '', 'Google sign-in turned on');
   return 'On';
+}
+
+/* Lesson maker: paste a free Gemini API key from https://aistudio.google.com (Get API key), Run once, then clear it again.
+   Only the TOPIC Chetana types is ever sent to Gemini: never a child's name, marks or notes.
+   MODEL can be changed later if Google retires it (see https://ai.google.dev/gemini-api/docs/models). */
+function setGeminiKey() {
+  const KEY = '';                       // paste the key here, Run, then clear it
+  const MODEL = 'gemini-flash-latest';
+  const p = PropertiesService.getScriptProperties();
+  if (!KEY) { p.deleteProperty('GEMINI_KEY'); log('setup', '', '', 'Lesson maker key removed'); return 'Removed'; }
+  p.setProperty('GEMINI_KEY', KEY.trim()); p.setProperty('GEMINI_MODEL', MODEL);
+  log('setup', '', '', 'Lesson maker key set');
+  return 'Key saved';
 }
 
 function setTeacherPin() {
@@ -267,6 +281,7 @@ function handle(q) {
         o.roadmaps = read('roadmaps').map(function (r) { return r.data; }).filter(function (x) { return mine(x.batch); });
         o.docs = read('docs').map(function (r) { return r.data; }).filter(function (d) { return ids.indexOf(d.sid) >= 0; });
         o.marks = read('marks').map(function (r) { return r.data; }).filter(function (m) { return ids.indexOf(m.sid) >= 0; });
+        o.lessons = read('lessons').map(function (r) { return r.data; });
         o.assign = read('assign').map(function (r) { return r.data; }).filter(function (a) { return a.target.slice(0, 2) === 'b:' ? mine(a.target.slice(2)) : ids.indexOf(a.target.slice(2)) >= 0; });
         o.fees = []; o.enquiries = []; o.teachers = [];
       }
@@ -286,6 +301,29 @@ function handle(q) {
       put('docs', d.id, d);
       log('upload', 'docs', d.id, name + ' for ' + s.data.name + (d.by ? ' (by ' + d.by + ')' : ''));
       return { ok: true, data: d };
+    }
+    case 'tGen': {                                     // Lesson maker: topic only, no student data
+      teacher();
+      const p = PropertiesService.getScriptProperties(), key = p.getProperty('GEMINI_KEY');
+      if (!key) throw new Error('Lesson maker is not set up yet. Run setGeminiKey in Apps Script.');
+      const dk = 'gen_' + today_(), n = Number(p.getProperty(dk) || 0) + 1;
+      if (n > GENS_PER_DAY) throw new Error('Daily limit reached. Try again tomorrow.');
+      p.setProperty(dk, String(n));
+      const o = q.o || {};
+      const res = UrlFetchApp.fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(p.getProperty('GEMINI_MODEL') || 'gemini-flash-latest') + ':generateContent', {
+        method: 'post', contentType: 'application/json', muteHttpExceptions: true, headers: { 'x-goog-api-key': key },
+        payload: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: genPrompt(o) }] }], generationConfig: { responseMimeType: 'application/json', temperature: 0.4 } })
+      });
+      if (res.getResponseCode() !== 200) throw new Error('The AI service said: ' + clip(res.getContentText(), 160));
+      let out;
+      try { const j = JSON.parse(res.getContentText()); out = JSON.parse(j.candidates[0].content.parts.map(function (x) { return x.text || ''; }).join('')); }
+      catch (err) { throw new Error('The AI reply could not be read. Please try again.'); }
+      log('generate', 'lessons', '', clip(o.topic, 80) + ' (' + (who.role === 'owner' ? 'Chetana' : who.name) + ')');
+      return { ok: true, data: out };
+    }
+    case 'lessons': {                                  // public: published lessons for the learning library (no personal data)
+      return { ok: true, data: read('lessons').map(function (r) { return r.data; }).filter(function (l) { return l.status === 'published'; })
+        .map(function (l) { return { id: l.id, no: l.no, title: l.title, subject: l.subject, grade: l.grade, lang: l.lang, learn: l.learn, examples: l.examples, questions: l.questions }; }) };
     }
     case 'tTeacherPut': {
       owner();
@@ -327,6 +365,9 @@ function handle(q) {
         } else if (q.kind === 'assign') {
           const okT = function (t) { return String(t).slice(0, 2) === 'b:' ? mine(String(t).slice(2)) : kidMine(String(t).slice(2)); };
           if (!okT(o.target) || (old && !okT(old.data.target))) throw new Error('Only Chetana can do this');
+        } else if (q.kind === 'lessons') {
+          if (old && old.data.by !== who.name) throw new Error('Only Chetana can do this');
+          o.by = who.name;
         } else if (q.kind === 'notes') {
           if ((o.sid && !kidMine(o.sid)) || (o.batch && !mine(o.batch)) || (old && old.data.by !== who.name)) throw new Error('Only Chetana can do this');
           o.by = who.name;
@@ -361,9 +402,9 @@ function handle(q) {
       teacher();
       if (KINDS.indexOf(q.kind) < 0) throw new Error('Bad request');
       if (who.role !== 'owner') {
-        const c = ['classes', 'roadmaps', 'notes', 'marks', 'assign'].indexOf(q.kind) >= 0 && read(q.kind).filter(function (r) { return r.id === String(q.id); })[0];
+        const c = ['classes', 'roadmaps', 'notes', 'marks', 'assign', 'lessons'].indexOf(q.kind) >= 0 && read(q.kind).filter(function (r) { return r.id === String(q.id); })[0];
         const kidOk = function (sid) { const s = read('students').filter(function (r) { return r.id === String(sid); })[0]; return !!s && mine(s.data.batch); };
-        const allowed = !c ? false : q.kind === 'notes' ? c.data.by === who.name : q.kind === 'marks' ? kidOk(c.data.sid)
+        const allowed = !c ? false : (q.kind === 'notes' || q.kind === 'lessons') ? c.data.by === who.name : q.kind === 'marks' ? kidOk(c.data.sid)
           : q.kind === 'assign' ? (String(c.data.target).slice(0, 2) === 'b:' ? mine(String(c.data.target).slice(2)) : kidOk(String(c.data.target).slice(2))) : mine(c.data.batch);
         if (!allowed) throw new Error('Only Chetana can do this');
       }
@@ -382,6 +423,25 @@ function handle(q) {
 function folder_(name, parent) {
   const it = parent ? parent.getFoldersByName(name) : DriveApp.getFoldersByName(name);
   return it.hasNext() ? it.next() : (parent ? parent.createFolder(name) : DriveApp.createFolder(name));
+}
+
+function genPrompt(o) {
+  const lang = { mr: 'Marathi (Devanagari script)', hi: 'Hindi (Devanagari script)' }[o.lang] || 'simple Indian English';
+  const nq = Math.max(10, Math.min(50, Number(o.nq) || 20));
+  return [
+    'You are helping an experienced Indian school teacher prepare a self-study lesson for children.',
+    'Topic: ' + clip(o.topic, 300), 'Grade: ' + clip(o.grade, 10) + '. Board: ' + clip(o.board, 20) + '. Write all lesson text in ' + lang + '.',
+    'Be accurate and age-appropriate. Use Indian contexts (rupees, Indian names, places). Keep sentences short.',
+    'Return ONLY JSON with this exact shape:',
+    '{"title": string (max 50 chars), "subject": string, "intro": string (2-3 sentences),',
+    ' "sections": [{"heading": string, "body": string}] (2 to 4 sections explaining the concept step by step),',
+    ' "examples": [{"question": string, "solution": string}] (2 or 3 worked examples),',
+    ' "questions": [{"type": "mcq" or "num", "question": string, "options": [4 strings, only for mcq], "answer": string, "hint": string}] (exactly ' + nq + ' questions, easy to harder),',
+    ' "card": {"kicker": string, "hook": string, "title": string, "intro": string, "items": [{"big": string, "label": string, "text": string}] (3 items), "tryit": string}}',
+    'Rules for questions: for "mcq" give exactly 4 different options and "answer" must be copied exactly from one option.',
+    'Use "num" only when the answer is a whole number of 0 or more; then "answer" is just the digits and there are no options.',
+    'Every question must have exactly one correct answer. Do not mention any real child, school or person.'
+  ].join('\n');
 }
 
 /* ---------------- scheduled jobs ---------------- */
