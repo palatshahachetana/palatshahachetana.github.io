@@ -24,9 +24,9 @@ function tDelK(kind,id){return S.tDel(tpin,kind,id).then(()=>{tdata[kind]=T(kind
 function teacher(){
   if(!tdata&&SYNC_URL&&CFG.GOOGLE_CLIENT_ID&&!gTok)return googleGate();
   if(!tdata){const first=!SYNC_URL&&!db().tpin;return pad(first?'Choose a teacher PIN':'Teacher PIN',first?'6 digits or more. Remember it: it protects this page.':'',true)}
-  const own=isOwner(),tabs=own?[['today','Today'],['students','Students'],['notes','Notes'],['roadmaps','Roadmaps'],['lessons','Lessons'],['assign','Assign'],['worksheets','Worksheets'],['cards','Cards'],['batches','Batches'],['fees','Fees'],['enquiries','Leads'],['help','Setup']]:[['today','Today'],['students','Students'],['notes','Notes'],['roadmaps','Roadmaps'],['lessons','Lessons'],['assign','Assign'],['worksheets','Worksheets'],['cards','Cards'],['help','Help']];
-  if(!own&&['batches','fees','enquiries','reports'].indexOf(tview)>=0)tview='today';
-  const body=tview==='lessons'?lessonsView():tview==='assign'?assignSection():tview==='worksheets'?worksheetsView():tview==='cards'?cardsView():tview==='notes'?notesView():tview==='roadmaps'?roadmapsView():tview==='reports'?reportsView():tview==='fees'&&treceipt?receiptView():tview==='today'?todayView():tview==='students'?(tsel?(own?studentDetail():teacherStudentDetail()):studentList()):tview==='batches'?batchesView():tview==='fees'?feesView():tview==='enquiries'?enquiries():help();
+  const own=isOwner(),tabs=own?[['today','Today'],['students','Students'],['notes','Notes'],['roadmaps','Roadmaps'],['lessons','Lessons'],['assign','Assign'],['worksheets','Worksheets'],['cards','Cards'],['batches','Batches'],['fees','Fees'],['enquiries','Leads'],['camps','Camps'],['help','Setup']]:[['today','Today'],['students','Students'],['notes','Notes'],['roadmaps','Roadmaps'],['lessons','Lessons'],['assign','Assign'],['worksheets','Worksheets'],['cards','Cards'],['help','Help']];
+  if(!own&&['batches','fees','enquiries','reports','camps'].indexOf(tview)>=0)tview='today';
+  const body=tview==='camps'?campsAdmin():tview==='lessons'?lessonsView():tview==='assign'?assignSection():tview==='worksheets'?worksheetsView():tview==='cards'?cardsView():tview==='notes'?notesView():tview==='roadmaps'?roadmapsView():tview==='reports'?reportsView():tview==='fees'&&treceipt?receiptView():tview==='today'?todayView():tview==='students'?(tsel?(own?studentDetail():teacherStudentDetail()):studentList()):tview==='batches'?batchesView():tview==='fees'?feesView():tview==='enquiries'?enquiries():help();
   return `<section class="stack"><div class="row"><h1 style="margin-right:auto">${own?'Teacher console':'Hello, '+esc(tdata.me.name)}</h1><button class="btn ghost" data-act="tlock">Lock</button></div>
   <div class="tabs tc-tabs">${tabs.map(([k,l])=>`<button class="btn" data-act="ttab" data-t="${k}" aria-pressed="${tview===k||(tview==='reports'&&k==='students')}">${l}</button>`).join('')}</div>
   ${msg?`<p class="pill bad" role="alert">${esc(msg)}</p>`:''}${tipBox()}</section>${body}`}
@@ -60,7 +60,7 @@ function todayView(){if(tcls)return classLog();const _setup=setupCard();
   const wd=dayOf(tdate),bs=T('batches').filter(b=>(b.days||[]).indexOf(wd)>=0).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
   const m=tdate.slice(0,7),feeDue=active().filter(s=>+s.fee>0&&!(feeRec(s,m)||{}).paid),newL=T('enquiries').filter(e=>e.status==='New'||e.status==='Demo booked');
   const other=T('batches').filter(b=>bs.indexOf(b)<0);
-  return _setup+`<section class="card stack"><div class="row"><h2 style="margin-right:auto">${prettyDate(tdate)}</h2>
+  return _setup+reengage()+`<section class="card stack"><div class="row"><h2 style="margin-right:auto">${prettyDate(tdate)}</h2>
    <button class="btn" data-act="tday" data-d="-1" aria-label="Previous day">‹</button><input type="date" value="${tdate}" data-change="tdate" aria-label="Pick a date" style="width:auto"><button class="btn" data-act="tday" data-d="1" aria-label="Next day">›</button></div>
   ${bs.length?bs.map(b=>{const c=T('classes').find(x=>x.id===clsId(b.id,tdate)),n=inBatch(b).length;return `<div class="tc-class${c?' logged':''}"><div class="grow"><b>${esc(b.time||'')} · ${esc(b.name)}</b>
      <div class="small muted">${n} student${n===1?'':'s'} · ${b.mode==='online'?'Online':'In person'}${c?` · ✅ ${c.present.length}/${(c.present.length+c.absent.length)} present${c.topic?' · '+esc(c.topic):''}`:''}</div></div>
@@ -175,8 +175,9 @@ function enquiries(){const es=T('enquiries').slice().sort((a,b)=>(b.date||'').lo
   return `<section class="grid">${STAT.map(st=>`<div class="card center"><div class="stat">${es.filter(e=>e.status===st).length}</div><div class="muted small">${st}</div></div>`).join('')}</section>
   <section class="card">${es.length?es.map(e=>{const l=waLink(e.phone,`Hello ${e.parent}, this is Chetana from Chetana’s Tutoring.`);return `<div class="item tc-lead"><div class="grow"><b>${esc(e.parent)}</b>${e.child?' for '+esc(e.child):''} <span class="muted small">Grade ${esc(e.grade||'?')} · ${esc(e.source)} · ${esc(e.date)}</span>${e.note?`<div class="small">${esc(e.note)}</div>`:''}</div>
    <select aria-label="Status for ${esc(e.parent)}" data-change="estatus" data-id="${esc(e.id)}" style="width:auto">${STAT.map(st=>`<option ${st===e.status?'selected':''}>${st}</option>`).join('')}</select>
-   ${l?`<a class="btn" href="${l}" target="_blank" rel="noopener">WhatsApp</a>`:''}${e.status!=='Joined'?`<button class="btn" data-act="econvert" data-id="${esc(e.id)}">Make student</button>`:''}
+   ${l?`<a class="btn" href="${l}" target="_blank" rel="noopener">WhatsApp</a>`:''}${e.board&&!e.boardDone?`<button class="btn go" data-act="eboard" data-id="${esc(e.id)}">Add ${esc(e.board.name)} to leaderboard (${e.board.s}/10)</button>`:''}${e.status!=='Joined'?`<button class="btn" data-act="econvert" data-id="${esc(e.id)}">Make student</button>`:''}
    <button class="btn bad" data-act="edel" data-id="${esc(e.id)}">${armed===e.id?'Tap again':'Delete'}</button></div>`}).join(''):`<p class="muted">No leads yet. Add each parent who asks, so nobody is forgotten.</p>`}</section>
+  ${boardAdmin()}
   <form class="card stack" data-form="addenq"><h3>Add a lead</h3>
   <div class="row"><label>Parent’s name<input id="ae-parent" required maxlength="30"></label><label>Child’s first name<input id="ae-child" maxlength="20"></label><label>Grade<input id="ae-grade" maxlength="2"></label></div>
   <div class="row"><label>WhatsApp<input id="ae-phone" type="tel" inputmode="tel" maxlength="16"></label><label>Came from<select id="ae-source">${SRC.map(x=>`<option>${x}</option>`).join('')}</select></label></div>
@@ -325,7 +326,7 @@ function noteRow(n){const s=n.sid&&T('students').find(x=>x.id===n.sid),b=n.batch
   <button class="btn ghost" data-act="tndel" data-id="${n.id}">${armed==='n'+n.id?'Tap again':'Delete'}</button></div>`}
 function noteForm(sid){return `<form class="stack" data-form="addnote"><div class="row">
   ${sid?`<input type="hidden" id="nt-sid" value="${esc(sid)}">`:`<label>About<select id="nt-sid"><option value="">General</option>${active().sort((a,b)=>a.name.localeCompare(b.name)).map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join('')}</select></label>`}
-  <label>Type<select id="nt-tag">${NTAGS.map(t=>`<option>${t}</option>`).join('')}</select></label><label>Date<input id="nt-date" type="date" value="${today()}"></label></div>
+  <label>Type<select id="nt-tag">${NTAGS.map(t=>`<option>${t}</option>`).join('')}</select></label><label>Date<input id="nt-date" type="date" value="${today()}"></label><label class="chk"><input type="checkbox" id="nt-share"> Show on the parent page</label></div>
   <label>Note<textarea id="nt-text" rows="3" maxlength="1000" required placeholder="e.g. Mother called: wants extra Marathi reading before the unit test"></textarea></label>
   <div class="row"><button class="btn navy">Save note</button></div></form>`}
 function notesView(){const f=tnote,list=T('notes').filter(n=>(!f.sid||n.sid===f.sid)&&(!f.tag||n.tag===f.tag)).sort((a,b)=>(b.date+b.id).localeCompare(a.date+a.id));
@@ -403,7 +404,7 @@ Object.assign(acts,{
   tdocdel(d){if(armed!=='d'+d.id){armed='d'+d.id;render();return}tDelK('docs',d.id)}
 });
 Object.assign(forms,{
-  addnote(){const o={id:newId('n'),sid:val('nt-sid'),tag:val('nt-tag'),date:val('nt-date')||today(),text:val('nt-text'),by:isOwner()?'':(tdata.me||{}).name||''};if(!o.text)return;tPutK('notes',o).then(()=>toast('Note saved.'))},
+  addnote(){const o={id:newId('n'),sid:val('nt-sid'),tag:val('nt-tag'),date:val('nt-date')||today(),text:val('nt-text'),share:!!(document.getElementById('nt-share')||{}).checked&&!!val('nt-sid'),by:isOwner()?'':(tdata.me||{}).name||''};if(!o.text)return;tPutK('notes',o).then(()=>toast('Note saved.'))},
   addrm(){const o={id:newId('r'),batch:val('rm-b'),subject:val('rm-s'),chapters:[],tests:[]};tPutK('roadmaps',o).then(()=>{trm=o.id;render()})},
   rmaddch(){const r=T('roadmaps').find(x=>x.id===trm),lines=document.getElementById('rm-ch').value.split('\n').map(x=>x.trim()).filter(Boolean).slice(0,60);if(!lines.length)return;
     r.chapters=(r.chapters||[]).concat(lines.map(t=>({id:newId('c'),t:t.slice(0,80),plan:'',done:''})));saveRm(r)},
@@ -682,4 +683,34 @@ function posterCanvas(){return new Promise((res,rej)=>{if(window.qrcode)return r
   x.fillStyle='#2F5A44';x.fillRect(0,H-520,W,520);x.fillStyle='#fff';x.font='700 130px Kalam, sans-serif';x.fillText("Chetana's Tutoring",W/2,H-330);
   x.font='600 72px "Nunito Sans", sans-serif';x.fillStyle='#FFD27A';x.fillText('Grades 1–10 · Sparklet, Megapolis, Hinjawadi · and online',W/2,H-200);x.fillStyle='#EEE8DA';x.fillText('palatshahachetana.github.io',W/2,H-100);return c})}
 Object.assign(acts,{poster(){posterCanvas().then(c=>c.toBlob(b=>{const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='challenge-poster-A4.png';document.body.appendChild(a);a.click();a.remove()},'image/png'))}});
+/* ---------- Leaderboard, camps, re-engagement ---------- */
+function boardAdmin(){const m=today().slice(0,7),b=T('board').filter(x=>x.month===m);if(!b.length)return '';
+  return `<section class="card stack"><h3>Leaderboard this month</h3><p class="small muted">Shown on the challenge page: first name and society only.</p>${b.sort((x,y)=>y.s-x.s).map(x=>`<div class="item"><div class="grow"><b>${esc(x.name)}</b> <span class="small muted">${esc(x.society||'')} · ${x.level} · ${x.s}/10 · ${x.t}s</span></div><button class="btn ghost" data-act="bdel" data-id="${esc(x.id)}">${armed==='b'+x.id?'Tap again':'Remove'}</button></div>`).join('')}</section>`}
+let tcamp=null;
+function campsAdmin(){const cs=T('camps').slice().sort((a,b)=>(b.created||'').localeCompare(a.created||'')),c=tcamp&&cs.find(x=>x.id===tcamp)||{};
+  return `<section class="card stack"><h2>Holiday camps</h2><p class="small muted">Published camps appear on the website at #camps with a “Reserve a seat” form. Bookings arrive in Leads as “Camp: …”.</p>
+  ${cs.map(x=>`<div class="item"><div class="grow"><b>${esc(x.title)}</b> <span class="small muted">${esc(x.dates)} · ${T('enquiries').filter(e=>e.source==='Camp: '+x.title).length} bookings</span></div><span class="pill ${x.status==='published'?'ok':''}">${x.status==='published'?'On the website':'Draft'}</span>
+   <button class="btn" data-act="campedit" data-id="${esc(x.id)}">Edit</button><button class="btn" data-act="camppub" data-id="${esc(x.id)}">${x.status==='published'?'Hide':'Publish'}</button><button class="btn bad" data-act="campdel" data-id="${esc(x.id)}">${armed==='c'+x.id?'Tap again':'Delete'}</button></div>`).join('')||'<p class="muted">No camps yet.</p>'}</section>
+  <form class="card stack" data-form="campsave"><h3>${c.id?'Edit camp':'New camp'}</h3>
+  <label>Title<input id="cp-t" required maxlength="60" value="${esc(c.title||'')}" placeholder="e.g. Summer Maths Booster"></label>
+  <div class="row"><label>Dates<input id="cp-d" required maxlength="40" value="${esc(c.dates||'')}" placeholder="e.g. 4–15 May, Mon–Fri"></label><label>Grades<input id="cp-g" maxlength="12" value="${esc(c.grades||'')}" placeholder="e.g. 3–5"></label><label>Time<input id="cp-tm" maxlength="30" value="${esc(c.time||'')}" placeholder="e.g. 10–11:30 am"></label><label>Where<select id="cp-m">${['At Sparklet, Megapolis','Online (Google Meet)','At Sparklet or online'].map(o=>`<option ${o===c.mode?'selected':''}>${o}</option>`).join('')}</select></label></div>
+  <label>About the camp<textarea id="cp-a" rows="3" maxlength="500" placeholder="What children will learn, batch size, what to bring">${esc(c.about||'')}</textarea></label>
+  <p class="small muted">Tip: don’t put fees or your phone number here. Parents reserve a seat and you reply on WhatsApp.</p>
+  <div class="row"><button class="btn navy">Save as draft</button>${c.id?'<button type="button" class="btn ghost" data-act="campnew">New camp instead</button>':''}</div></form>`}
+const RE_SNOOZE='ct_reng';
+function reengage(){const sn=ls.get(RE_SNOOZE)||{},cut=addDays(today(),-7),t=today();
+  const list=active().filter(s=>{const last=(s.sessions||[]).slice(-1)[0];return(!last||last<cut)&&!(sn[s.id]&&sn[s.id]>t)});if(!list.length)return '';
+  return `<section class="card stack reng"><h3>Not practising lately (${list.length})</h3><p class="small muted">No practice on the website for 7 days or more. A friendly nudge usually works.</p>
+  ${list.slice(0,8).map(s=>{const last=(s.sessions||[]).slice(-1)[0],txt=`Hello! ${s.name.split(' ')[0]} hasn’t practised on Kids’ World this week. Ten minutes tonight keeps the streak going: ${location.origin}${location.pathname}#world — Chetana`,l=s.phone?waLink(s.phone,txt):'';
+   return `<div class="item"><div class="grow"><b>${esc(s.name)}</b> <span class="small muted">${last?'last practised '+prettyShort(last):'never practised online'}</span></div>${l?`<a class="btn" href="${l}" target="_blank" rel="noopener">Nudge on WhatsApp</a>`:`<button class="btn" data-act="recopy" data-t="${esc(txt)}">Copy message</button>`}<button class="btn ghost" data-act="resnooze" data-id="${esc(s.id)}">Hide for a week</button></div>`}).join('')}</section>`}
+Object.assign(acts,{
+  eboard(d){const e=T('enquiries').find(x=>x.id===d.id);if(!e||!e.board)return;const b=Object.assign({id:newId('lb')},e.board);tPutK('board',b).then(()=>tPutK('enquiries',Object.assign({},e,{boardDone:true}))).then(()=>toast('Added to the leaderboard.'))},
+  bdel(d){if(armed!=='b'+d.id){armed='b'+d.id;render();return}armed=null;tDelK('board',d.id)},
+  campedit(d){tcamp=d.id;render();window.scrollTo(0,document.body.scrollHeight)},campnew(){tcamp=null;render()},
+  camppub(d){const c=T('camps').find(x=>x.id===d.id);tPutK('camps',Object.assign({},c,{status:c.status==='published'?'draft':'published'}))},
+  campdel(d){if(armed!=='c'+d.id){armed='c'+d.id;render();return}armed=null;tDelK('camps',d.id)},
+  recopy(d){navigator.clipboard&&navigator.clipboard.writeText(d.t).then(()=>toast('Message copied.'))},
+  resnooze(d){const sn=ls.get(RE_SNOOZE)||{};sn[d.id]=addDays(today(),7);ls.set(RE_SNOOZE,sn);render()}});
+Object.assign(forms,{campsave(){const old=tcamp&&T('camps').find(x=>x.id===tcamp)||{};const o=Object.assign({},old,{id:old.id||newId('cp'),title:val('cp-t'),dates:val('cp-d'),grades:val('cp-g'),time:val('cp-tm'),mode:val('cp-m'),about:val('cp-a'),status:old.status||'draft',created:old.created||today()});
+  tPutK('camps',o).then(()=>{tcamp=null;toast('Camp saved. Tap Publish to show it on the website.')})}});
 window.teacherReady=true;

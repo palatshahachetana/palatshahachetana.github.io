@@ -26,7 +26,7 @@
  * - Monthly clean-up: deletes children marked Left for over 12 months (fee entries kept) and old
  *   enquiries that never joined, as promised on the website's Privacy page.
  */
-const KINDS = ['students', 'enquiries', 'batches', 'classes', 'fees', 'notes', 'roadmaps', 'docs', 'marks', 'assign', 'lessons'];
+const KINDS = ['students', 'enquiries', 'batches', 'classes', 'fees', 'notes', 'roadmaps', 'docs', 'marks', 'assign', 'lessons', 'camps', 'board'];
 const GENS_PER_DAY = 40;
 const MAX_UPLOAD = 7 * 1024 * 1024;   // ~5 MB file once base64-encoded
 const DOC_TYPES = /^(application\/pdf|image\/(jpeg|png|webp)|application\/vnd\.openxmlformats-officedocument\.(wordprocessingml\.document|spreadsheetml\.sheet|presentationml\.presentation)|application\/msword)$/;
@@ -207,6 +207,33 @@ function whoIs(q) {
 }
 const TEACHER_STUDENT_FIELDS = ['level', 'note', 'mistakes'];
 
+
+/* Parent page and exam mode: built from a child's own records only. */
+function examsFor_(batch, roadmaps) {
+  const t = today_(), lim = Utilities.formatDate(new Date(Date.now() + 45 * 864e5), Session.getScriptTimeZone(), 'yyyy-MM-dd'), out = [];
+  roadmaps.filter(function (r) { return r.batch === batch; }).forEach(function (r) {
+    (r.tests || []).forEach(function (x) { if (x.d >= t && x.d <= lim) out.push({ subject: r.subject, test: x.name, d: x.d, chapters: (r.chapters || []).map(function (c) { return { t: c.t, done: !!c.done }; }) }); });
+  });
+  return out.sort(function (a, b) { return a.d < b.d ? -1 : 1; });
+}
+function parentReport_(s) {
+  const from = Utilities.formatDate(new Date(Date.now() - 30 * 864e5), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  const data = function (k) { return read(k).map(function (r) { return r.data; }); };
+  const cls = data('classes').filter(function (c) { return c.batch === s.batch && c.date >= from; }).sort(function (a, b) { return a.date < b.date ? 1 : -1; });
+  const att = { p: 0, a: 0 }, hw = { d: 0, l: 0, m: 0 }, hwList = [];
+  cls.forEach(function (c) {
+    if ((c.present || []).indexOf(s.id) >= 0) att.p++; else if ((c.absent || []).indexOf(s.id) >= 0) att.a++;
+    const v = c.hw && c.hw[s.id]; if (v === 'done') hw.d++; else if (v === 'late') hw.l++; else if (v === 'missing') hw.m++;
+    if (c.homework && hwList.length < 5) hwList.push({ date: c.date, text: c.homework, st: v || '' });
+  });
+  return { name: s.name, grade: s.grade, stars: s.stars || 0, sessions: (s.sessions || []).slice(-60), att: att, hw: hw, hwList: hwList,
+    marks: data('marks').filter(function (m) { return m.sid === s.id; }).sort(function (a, b) { return a.date < b.date ? 1 : -1; }).slice(0, 8)
+      .map(function (m) { return { date: m.date, subject: m.subject, test: m.test, score: m.score, outOf: m.outOf }; }),
+    notes: data('notes').filter(function (n) { return n.sid === s.id && n.share; }).sort(function (a, b) { return a.date < b.date ? 1 : -1; }).slice(0, 5)
+      .map(function (n) { return { date: n.date, text: n.text }; }),
+    exams: examsFor_(s.batch, data('roadmaps')) };
+}
+
 function handle(q) {
   let who = null;
   const teacher = function () { who = whoIs(q); return who; };
@@ -228,6 +255,7 @@ function handle(q) {
   switch (q.action) {
     case 'login': {
       const me = kidCheck(read('students')).data, v = kidView(me);
+      v.exams = examsFor_(me.batch, read('roadmaps').map(function (r) { return r.data; }));
       v.assign = read('assign').map(function (r) { return r.data; }).filter(function (a) { return a.target === 's:' + me.id || a.target === 'b:' + me.batch; });
       return { ok: true, data: v };
     }
@@ -236,6 +264,17 @@ function handle(q) {
       KEEP.forEach(function (k) { if (q.patch && k in q.patch) s.data[k] = q.patch[k]; });
       put('students', s.id, s.data, students);
       return { ok: true, data: true };
+    }
+    case 'pView': {                                    // parent page: same child name + PIN, read-only summary
+      return { ok: true, data: parentReport_(kidCheck(read('students')).data) };
+    }
+    case 'board': {                                    // public: this month's approved leaderboard (first name + society only)
+      const m = today_().slice(0, 7);
+      return { ok: true, data: read('board').map(function (r) { return r.data; }).filter(function (b) { return b.month === m; })
+        .map(function (b) { return { name: b.name, society: b.society, level: b.level, s: b.s, t: b.t }; }) };
+    }
+    case 'camps': {                                    // public: published holiday camps
+      return { ok: true, data: read('camps').map(function (r) { return r.data; }).filter(function (c) { return c.status === 'published'; }) };
     }
     case 'lead': {                                     // public: website enquiry, write-only
       const o = q.o || {};
@@ -249,8 +288,10 @@ function handle(q) {
       const rows = read('enquiries');
       if (rows.some(function (r) { return r.id === id; })) return { ok: true, data: true };
       const e = { id: id, parent: clip(o.parent, 40) || '(not given)', child: clip(o.child, 20), grade: clip(o.grade, 12),
-        phone: clip(o.phone, 16).replace(/[^\d+ ]/g, ''), source: ['Starting check', 'Monthly challenge'].indexOf(o.source) >= 0 ? o.source : 'Website',
+        phone: clip(o.phone, 16).replace(/[^\d+ ]/g, ''), source: ['Starting check', 'Monthly challenge'].indexOf(o.source) >= 0 ? o.source : /^Camp: /.test(String(o.source || '')) ? clip(o.source, 60) : 'Website',
         note: clip(o.note, 400), status: 'New', date: today_() };
+      if (o.board && o.source === 'Monthly challenge') e.board = { name: clip(o.child, 20).split(' ')[0], society: clip(o.board.society, 30), level: o.board.level === 'senior' ? 'senior' : 'junior',
+        s: Math.max(0, Math.min(10, Number(o.board.s) || 0)), t: Math.max(1, Math.min(3600, Number(o.board.t) || 0)), month: today_().slice(0, 7) };
       put('enquiries', id, e, rows);
       log('lead', 'enquiries', id, e.source + ': ' + e.parent);
       return { ok: true, data: true };

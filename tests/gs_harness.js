@@ -220,4 +220,25 @@ check('lesson maker: needs key, sends only the topic, daily cap; public list sho
   assert.deepStrictEqual(pub.map(l => l.id), ['L1']); assert.ok(!('by' in pub[0]));
   assert.match(post({ action: 'tDel', pin: '246824', kind: 'lessons', id: 'L1' }).error, /Only Chetana/);
 });
+check('parent page shows only shared notes and no contact data', () => {
+  post({ action: 'tPut', pin: T, kind: 'students', o: { id: 's9', name: 'Meera', pin: '4321', phone: '9000000000', parent: 'Asha', batch: 'b9', status: 'active' } });
+  post({ action: 'tPut', pin: T, kind: 'notes', o: { id: 'n1', sid: 's9', text: 'Shared note', share: true, date: '2026-01-02' } });
+  post({ action: 'tPut', pin: T, kind: 'notes', o: { id: 'n2', sid: 's9', text: 'Private note', date: '2026-01-03' } });
+  const r = post({ action: 'pView', name: 'meera', pin: '4321' }).data;
+  assert.deepStrictEqual(r.notes.map(n => n.text), ['Shared note']);
+  const j = JSON.stringify(r); assert.ok(!j.includes('9000000000') && !j.includes('Asha') && !j.includes('pinHash'));
+  assert.strictEqual(post({ action: 'pView', name: 'meera', pin: '0000' }).error, 'Wrong PIN');
+});
+check('leaderboard only shows approved entries; camps only published', () => {
+  post({ action: 'lead', o: { id: 'lbq77777', child: 'Meera Rao', phone: '9', source: 'Monthly challenge', board: { society: 'Megapolis', level: 'junior', s: 99, t: 30 } } });
+  const e = ss.getSheetByName('enquiries') && post({ action: 'tAll', pin: T }).data.enquiries.find(x => x.id === 'w_lbq77777');
+  assert.ok(e.board.name === 'Meera' && e.board.s === 10);
+  assert.strictEqual(post({ action: 'board' }).data.length, 0);
+  post({ action: 'tPut', pin: T, kind: 'board', o: Object.assign({ id: 'lb1' }, e.board) });
+  const b = post({ action: 'board' }).data; assert.ok(b.length === 1 && !('id' in b[0]));
+  post({ action: 'tPut', pin: T, kind: 'camps', o: { id: 'c1', title: 'Summer', status: 'draft' } });
+  assert.strictEqual(post({ action: 'camps' }).data.length, 0);
+  post({ action: 'lead', o: { id: 'cmp99999', parent: 'P', source: 'Camp: Summer' } });
+  assert.ok(post({ action: 'tAll', pin: T }).data.enquiries.some(x => x.source === 'Camp: Summer'));
+});
 console.log(n + ' checks\nALL OK');
