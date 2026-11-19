@@ -20,7 +20,7 @@ def teacher_login(page, code="123456"):
 # ---------- static checks ----------
 def test_no_inline_scripts_and_strict_csp():
     html = open(os.path.join(ROOT, "index.html")).read()
-    assert not re.search(r"<script(?![^>]*\bsrc=)[^>]*>", html), "inline <script> found"
+    assert not re.search(r"<script(?![^>]*\b(?:src=|type=\"application/ld\+json\"))[^>]*>", html), "inline <script> found"
     assert not re.search(r"\son[a-z]+=\"", html), "inline event handler found"
     csp = re.search(r'Content-Security-Policy" content="([^"]+)"', html).group(1)
     script_src = re.search(r"script-src ([^;]+)", csp).group(1)
@@ -34,6 +34,7 @@ def test_home_does_not_download_lesson_modules(page):
     assert not [u for u in loaded if "/mod-" in u]
     page.go("maths", 800)
     assert any("mod-maths.js" in u for u in loaded)
+    assert not [u for u in loaded if "mod-teacher.js" in u], "parents must not download the teacher console"
 
 
 def test_sync_url_lives_only_in_config():

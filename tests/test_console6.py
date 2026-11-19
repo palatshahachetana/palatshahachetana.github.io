@@ -40,7 +40,7 @@ def test_roadmap_and_weekly_update(page):
     page.fill("#rm-ch", "Large numbers\nFractions\nDecimals\nGeometry"); page.click("form[data-form=rmaddch] button")
     assert page.locator(".rmch").count() == 4
     t = datetime.date.today()
-    page.fill("#rm-to", (t + datetime.timedelta(days=28)).isoformat()); page.click("text=Plan the weeks for me")
+    page.fill("#rm-to", (t + datetime.timedelta(days=28)).isoformat()); page.click("form[data-form=rmspread] button")
     assert page.locator(".rmch").first.inner_text().count("Plan: week of") == 1
     page.fill("#rm-tn", "Unit test 1"); page.fill("#rm-td", (t + datetime.timedelta(days=10)).isoformat()); page.click("form[data-form=rmtest] button")
     # alert on Today, tick a chapter in the class log

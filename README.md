@@ -6,7 +6,9 @@ Live at https://palatshahachetana.github.io
 | File | What it is |
 |---|---|
 | `index.html` | Page shell, security rules (Content-Security-Policy), link-preview tags |
-| `app.js` | All the site's code: pages, learning modules, Kids' World, Pune Ride, starting check, teacher console |
+| `app.js` | The public site: pages, Kids' World, Pune Ride, starting check, practice, 3D toys |
+| `mod-teacher.js` | The teacher console (loaded only when Teacher login is opened) |
+| `mod-*.js` | Lesson modules (maths, grammar, Marathi/Hindi...), loaded only when opened |
 | `styles.css` | Colours and layout (Chalk & Marigold theme, dark mode) |
 | `config.js` | **Settings:** Google Sheet script URL, optional Google sign-in client ID |
 | `manifest.webmanifest`, `sw.js` | Lets the site be installed on a phone like an app, and open on weak internet |
